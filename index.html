@@ -103,11 +103,11 @@ muteEl.addEventListener('click', () => { G.muted = !G.muted; muteEl.textContent 
 // ===== PIXEL SPRITES =====
 const PAL = {
   S:'#f1c27d', H:'#9a4a2c', W:'#f4f1ee', J:'#8fb0dc', R:'#d95763', L:'#c0392b', T:'#999999', K:'#2b1d1a',
-  C:'#e8cfa6', B:'#4a3028', E:'#5fcde4', D:'#d95763', F:'#c97b3d'
+  C:'#e8cfa6', B:'#4a3028', E:'#5fcde4', D:'#d95763', F:'#c97b3d', O:'#1e1410', h:'#c46a3a'
 };
 const GIRL_HEAD = [
   ".....HHHHHH.....",
-  "....HHHHHHHH....",
+  "....HHhHHhHH....",
   "...HHSSSSSSHH...",
   "...HHSKSSKSHH...",
   "...HHSSSSSSHH...",
@@ -159,65 +159,84 @@ const SPR = {
     ".HHH..WWWWWWWWJJJJJJJ...",
     "......SSSSSS............"],
   cat_sit: [
-    "..B....B..",
-    "..BB..BB..",
-    "..BBBBBB..",
-    ".BBEBBEBB.",
-    ".BBBBBBBB.",
-    "..BBBBBB..",
-    "...CCCC...",
-    "..CCCCCC..",
-    "..CCCCCC..",
-    ".CCCCCCCB.",
-    ".CCCCCCCB.",
-    ".BBBBBBBB."],
+    "..BB......BB..",
+    "..BBB....BBB..",
+    "..BBBBBBBBBB..",
+    ".BBBBBBBBBBBB.",
+    ".BBEBBBBBBEBB.",
+    ".BBBBBBDBBBBB.",
+    "..BBBBBBBBBB..",
+    "...CCCCCCCC...",
+    "..CCCCCCCCCC..",
+    ".CCCCCCCCCCCC.",
+    ".CCCCCCCCCCCC.",
+    "..CCCCCCCCCC..",
+    "..BBBB....BBBB"],
   cat_beg: [
-    "..B....B..",
-    "..BB..BB..",
-    ".BBBBBBBB.",
-    ".BBEBBEBB.",
-    "..BBBBBB..",
-    "..BCCCCB..",
-    ".BCCCCCCB.",
-    "B.CCCCCC.B",
-    "B.CCCCCC.B",
-    "..CCCCCC..",
-    "..CCCCCC..",
-    "..CC..CC..",
-    "..BB..BB.."],
+    "..BB......BB..",
+    "..BBB....BBB..",
+    "..BBBBBBBBBB..",
+    ".BBBBBBBBBBBB.",
+    ".BBEBBBBBBEBB.",
+    ".BBBBBBDBBBBB.",
+    "..BBBBBBBBBB..",
+    "...CCCCCCCC...",
+    ".BCCCCCCCCCCB.",
+    "BBCCCCCCCCCCBB",
+    "B.CCCCCCCCCC.B",
+    "..CCCCCCCCCC..",
+    "..BBBB....BBBB"],
   cat_walk1: [
-    "B.........B.B.",
-    "B........BBBB.",
-    ".B.CCCCCCBBEB.",
-    ".B.CCCCCCCBBB.",
-    "..CCCCCCCCCC..",
-    "..CCCCCCCCCC..",
-    "..B.B....B.B..",
-    "..B.B....B.B.."],
+    "BB............B...",
+    "BBB...........BB..",
+    ".BCEBCCCCCCCBB....",
+    ".BCCBCCCCCCCCCBB..",
+    "BCCCCCCCCCCCCCCCB.",
+    "BCCCCCCCCCCCCCCCBB",
+    ".BCCCCCCCCCCCCCB..",
+    "..BB.BB....BB.BB..",
+    "..BB.BB....BB.BB.."],
   cat_walk2: [
-    "B.........B.B.",
-    "B........BBBB.",
-    ".B.CCCCCCBBEB.",
-    ".B.CCCCCCCBBB.",
-    "..CCCCCCCCCC..",
-    "..CCCCCCCCCC..",
-    "...B..B..B..B.",
-    "...B..B..B..B."],
+    "BB............B...",
+    "BBB...........BB..",
+    ".BCEBCCCCCCCBB....",
+    ".BCCBCCCCCCCCCBB..",
+    "BCCCCCCCCCCCCCCCB.",
+    "BCCCCCCCCCCCCCCCBB",
+    ".BCCCCCCCCCCCCCB..",
+    "...B.B.....B.B....",
+    "..B..B.....B..B..."],
   cat_sleep: [
-    "..............",
-    "...BBBBBBB....",
-    "..BCCCCCCCBB..",
-    ".BCCCCCCCCCBB.",
-    ".BCCCCCCCCBBBB",
-    "..BBBBBBBBBBB."],
+    "....BBBBBBBB....",
+    "..BBCCCCCCCBB...",
+    ".BCCCCCCCCCCCBB.",
+    "BCCCCCCCCCCCCCCBB",
+    "BBBBBBBBBBBBBBBBB"],
   bowl: ["BBBBBBBB", "BFFFFFFB", ".BBBBBB."],
   toy: [".DDD.", "DDLDD", "DLDDD", "DDDLD", ".DDD."]
 };
+// Adds a 1-cell dark outline (and transparent border) around a sprite grid.
+function outlineRows(raw) {
+  const W0 = Math.max(...raw.map(r => r.length));
+  const pad = '.'.repeat(W0 + 2);
+  const g = [pad, ...raw.map(r => '.' + r.padEnd(W0, '.') + '.'), pad];
+  const H = g.length, W = W0 + 2;
+  return g.map((row, y) => row.split('').map((ch, x) => {
+    if (ch !== '.') return ch;
+    const hit = [[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dx, dy]) => {
+      const yy = y + dy, xx = x + dx;
+      return yy >= 0 && yy < H && xx >= 0 && xx < W && g[yy][xx] !== '.';
+    });
+    return hit ? 'O' : '.';
+  }).join(''));
+}
+const SC = 3; // screen pixels per sprite cell
 const Sprites = {};
 (function compile() {
-  const sc = 2;
-  for (const [name, rows] of Object.entries(SPR)) {
-    const w = rows[0].length, h = rows.length;
+  const sc = SC;
+  for (const [name, raw] of Object.entries(SPR)) {
+    const rows = /^(cat|girl)/.test(name) ? outlineRows(raw) : raw;
+    const w = Math.max(...rows.map(r => r.length)), h = rows.length;
     const c = document.createElement('canvas'); c.width = w * sc; c.height = h * sc;
     const x = c.getContext('2d');
     rows.forEach((row, yy) => { for (let xx = 0; xx < w; xx++) {
@@ -292,9 +311,10 @@ const Iustina = {
   }
 };
 
+// Accessories are placed in padded sprite-grid cells (SC screen px per cell).
 const ACC = {
-  cat_sit:{bow:[8,3],bell:[9,13]}, cat_beg:{bow:[8,3],bell:[9,13]},
-  cat_walk1:{bow:[21,1],bell:[18,8]}, cat_walk2:{bow:[21,1],bell:[18,8]}
+  cat_sit: { bow: [[5, 8], [6, 8]], bell: [[8, 9]] },
+  cat_beg: { bow: [[5, 8], [6, 8]], bell: [[8, 9]] }
 };
 function drawCat(name, flip, x, y) {
   const s = Sprites[name + (flip ? '_flip' : '')];
@@ -302,8 +322,10 @@ function drawCat(name, flip, x, y) {
   ctx.drawImage(s, dx, dy);
   const a = ACC[name];
   if (a) {
-    if (bondLevel() >= 2) { const bx = flip ? s.width - a.bow[0] - 4 : a.bow[0]; ctx.fillStyle = '#e8606c'; ctx.fillRect(dx + bx, dy + a.bow[1], 4, 2); ctx.fillStyle = '#ac3232'; ctx.fillRect(dx + bx + 1, dy + a.bow[1], 2, 2); }
-    if (bondLevel() >= 3) { const bx = flip ? s.width - a.bell[0] - 2 : a.bell[0]; ctx.fillStyle = '#f4c430'; ctx.fillRect(dx + bx, dy + a.bell[1], 2, 2); }
+    const Wc = s.width / SC;
+    const cell = (c, r, col) => { const cc = flip ? Wc - 1 - c : c; ctx.fillStyle = col; ctx.fillRect(dx + cc * SC, dy + r * SC, SC, SC); };
+    if (bondLevel() >= 2) a.bow.forEach(([c, r]) => cell(c, r, '#e8606c'));
+    if (bondLevel() >= 3) a.bell.forEach(([c, r]) => cell(c, r, '#f4c430'));
   }
   return s;
 }
@@ -329,7 +351,7 @@ const Kitty = {
       return;
     }
     if (this.state === 'cuddle') {
-      this.x = BED_X - 8; this.y = GROUND - 14;
+      this.x = BED_X - 8; this.y = GROUND - 9;
       if (this.stateT % 60 === 0) {
         st.energy = clamp(st.energy + 3, 0, 100); st.happy = clamp(st.happy + 1, 0, 100); updateUI();
         const z = this.stateT % 120 === 0;
@@ -348,7 +370,7 @@ const Kitty = {
       const t = Math.min(1, this.stateT / 40);
       this.dir = 1;
       this.x = this.hopFromX + (BED_X - 8 - this.hopFromX) * t;
-      this.y = (GROUND + 4) + ((GROUND - 14) - (GROUND + 4)) * t - Math.sin(Math.PI * t) * 18;
+      this.y = (GROUND + 4) + ((GROUND - 9) - (GROUND + 4)) * t - Math.sin(Math.PI * t) * 18;
       if (t >= 1) { this.setState('cuddle'); sound('purr'); particle('♥', this.x, this.y - 16, '#ff6f91'); bubble('Purr...', this.x, this.y - 36); }
       return;
     }
