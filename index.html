@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Pixel Pals</title>
+<title>Iustina & Kitty</title>
 <style>
   :root { --bg:#2b2b36; --ui:#e8cfa6; --border:#4a3028; --text:#4a3028; }
   * { box-sizing: border-box; }
@@ -23,26 +23,6 @@
            font-size:clamp(11px,3vw,15px); padding:10px 4px; cursor:pointer; box-shadow:2px 2px 0 var(--border); text-transform:uppercase; }
   button:active { transform:translate(2px,2px); box-shadow:none; }
   .hint { text-align:center; color:#cfc3a8; font-size:11px; padding:6px; }
-  .lnk { cursor:pointer; text-decoration:underline; }
-  #setup { position:fixed; inset:0; z-index:10; background:#1d1b26; display:none; justify-content:center; overflow:auto; padding:16px; }
-  #setup .panel { width:100%; max-width:660px; color:#e8cfa6; }
-  #setup h1 { font-size:20px; margin:4px 0 4px; text-transform:uppercase; }
-  #setup p.sub { margin:0 0 14px; font-size:12px; color:#b9ad92; }
-  .cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  @media (max-width:560px) { .cards { grid-template-columns:1fr; } }
-  .card { background:#2b2938; border:3px solid #4a3028; padding:10px; }
-  .card h2 { font-size:14px; margin:0 0 8px; text-transform:uppercase; }
-  .card input[type=text] { width:100%; font-family:inherit; font-size:14px; padding:6px; border:2px solid #4a3028; background:#fff; color:#4a3028; margin-bottom:8px; }
-  .card input[type=file] { width:100%; font-size:12px; color:#e8cfa6; margin-bottom:8px; }
-  .thumbs { display:flex; gap:8px; align-items:flex-end; margin-bottom:8px; }
-  .thumbs canvas { background:#111; border:2px solid #4a3028; image-rendering:pixelated; width:96px; height:96px; }
-  .thumbs canvas.prev { width:120px; height:96px; }
-  .row { display:flex; align-items:center; justify-content:space-between; font-size:12px; margin:4px 0; }
-  .row input[type=color] { width:44px; height:28px; border:2px solid #4a3028; padding:0; background:none; cursor:pointer; }
-  .note { font-size:11px; color:#b9ad92; margin:10px 0; }
-  .actions { display:flex; gap:8px; margin-top:12px; }
-  .actions button { flex:1; }
-  #err { color:#ff9a9a; font-size:12px; min-height:16px; }
 </style>
 </head>
 <body>
@@ -52,7 +32,7 @@
     <div class="stat">Happy<div class="bar"><div class="fill" id="b-happy" style="background:#d95763"></div></div></div>
     <div class="stat">Energy<div class="bar"><div class="fill" id="b-energy" style="background:#5b6ee1"></div></div></div>
     <div class="stat">Clean<div class="bar"><div class="fill" id="b-clean" style="background:#5fcde4"></div></div></div>
-    <div class="hud"><span>Bond Lv <span id="bond">1</span> &nbsp; Coins <span id="coins">0</span></span><span><span class="lnk" id="cust">[Customize]</span> <span class="lnk" id="gift">[Gift]</span> <span class="lnk" id="mute">[Mute]</span></span></div>
+    <div class="hud"><span>Bond Lv <span id="bond">1</span> &nbsp; Coins <span id="coins">0</span></span><span id="mute">[Mute]</span></div>
   </div>
   <canvas id="c" width="320" height="180"></canvas>
   <div class="controls">
@@ -66,37 +46,7 @@
     <button onclick="action('hold')">Pick Up</button>
     <button id="bed-btn" onclick="action('bed')">Bed</button>
   </div>
-  <div class="hint">Tap your pet to pet them. Tap the ground to walk there. Press Bed to tuck in and let your pet cuddle.</div>
-</div>
-
-<div id="setup">
-  <div class="panel">
-    <h1>Make your pixel pals</h1>
-    <p class="sub">Add a photo of your pet and of you. We suggest matching colours, then you fine-tune them. Photos never leave your device and are not saved, only the colours.</p>
-    <div class="cards">
-      <div class="card">
-        <h2>Your pet</h2>
-        <input type="text" id="in-cname" maxlength="12" placeholder="Pet's name">
-        <input type="file" id="in-cphoto" accept="image/*">
-        <div class="thumbs"><canvas id="th-cat" width="24" height="24"></canvas><canvas class="prev" id="pv-cat" width="40" height="32"></canvas></div>
-        <div id="cols-cat"></div>
-      </div>
-      <div class="card">
-        <h2>You</h2>
-        <input type="text" id="in-pname" maxlength="12" placeholder="Your name">
-        <input type="file" id="in-pphoto" accept="image/*">
-        <div class="thumbs"><canvas id="th-me" width="24" height="24"></canvas><canvas class="prev" id="pv-me" width="40" height="32"></canvas></div>
-        <div id="cols-me"></div>
-      </div>
-    </div>
-    <div class="note">Suggested colours are a best guess from the photo (a full-body, well-lit photo works best). Tap any colour to change it.</div>
-    <div id="err"></div>
-    <div class="actions">
-      <button id="setup-cancel" style="display:none">Cancel</button>
-      <button id="setup-reset">Reset</button>
-      <button id="setup-go">Start playing</button>
-    </div>
-  </div>
+  <div class="hint">Tap Kitty to pet her. Tap the ground to walk Iustina there. Press Bed to tuck Iustina in and let Kitty cuddle.</div>
 </div>
 
 <script>
@@ -151,14 +101,10 @@ const muteEl = document.getElementById('mute');
 muteEl.addEventListener('click', () => { G.muted = !G.muted; muteEl.textContent = G.muted ? '[Unmute]' : '[Mute]'; });
 
 // ===== PIXEL SPRITES =====
-// The look of both characters is driven by CFG (colours + names). Setup screen edits it.
-const DEFAULT_CFG = { pName:'Iustina', cName:'Kitty', fur:'#e8cfa6', points:'#4a3028', eyes:'#5fcde4',
-                      hair:'#9a4a2c', skin:'#f1c27d', top:'#f4f1ee', jeans:'#8fb0dc', shoes:'#d95763' };
-let CFG = Object.assign({}, DEFAULT_CFG);
-function palFrom(c) {
-  return { S:c.skin, H:c.hair, W:c.top, J:c.jeans, R:c.shoes, L:'#c0392b', T:'#999999', K:'#3a2820',
-           C:c.fur, B:c.points, E:c.eyes, D:'#d95763', F:'#c97b3d' };
-}
+const PAL = {
+  S:'#f1c27d', H:'#9a4a2c', W:'#f4f1ee', J:'#8fb0dc', R:'#d95763', L:'#c0392b', T:'#999999', K:'#2b1d1a',
+  C:'#e8cfa6', B:'#4a3028', E:'#5fcde4', D:'#d95763', F:'#c97b3d'
+};
 const GIRL_HEAD = [
   ".....HHHHHH.....",
   "....HHHHHHHH....",
@@ -264,12 +210,11 @@ const SPR = {
     ".BCCCCCCCCCBB.",
     ".BCCCCCCCCBBBB",
     "..BBBBBBBBBBB."],
-  bowl: ["KKKKKKKK", "KFFFFFFK", ".KKKKKK."],
+  bowl: ["BBBBBBBB", "BFFFFFFB", ".BBBBBB."],
   toy: [".DDD.", "DDLDD", "DLDDD", "DDDLD", ".DDD."]
 };
-let Sprites = {};
-function buildSprites(PAL) {
-  const Sprites = {};
+const Sprites = {};
+(function compile() {
   const sc = 2;
   for (const [name, rows] of Object.entries(SPR)) {
     const w = rows[0].length, h = rows.length;
@@ -282,15 +227,7 @@ function buildSprites(PAL) {
     const fx = f.getContext('2d'); fx.translate(f.width, 0); fx.scale(-1, 1); fx.drawImage(c, 0, 0);
     Sprites[name] = c; Sprites[name + '_flip'] = f;
   }
-  return Sprites;
-}
-Sprites = buildSprites(palFrom(CFG));
-function nameTag(text, x, y) {
-  ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center';
-  const w = Math.ceil(ctx.measureText(text).width) + 8;
-  ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(Math.floor(x - w / 2), Math.floor(y - 8), w, 10);
-  ctx.fillStyle = '#fff'; ctx.fillText(text, Math.floor(x), Math.floor(y));
-}
+})();
 
 // ===== BACKGROUND (pre-rendered) =====
 const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
@@ -352,7 +289,6 @@ const Iustina = {
     const bob = (this.state === 'idle' && Math.floor(this.timer / 40) % 2) ? 1 : 0;
     ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(Math.floor(this.x - 12), this.y, 24, 3);
     ctx.drawImage(s, Math.floor(this.x - s.width / 2), this.y - s.height + bob);
-    nameTag(CFG.pName, this.x, this.y - s.height - 3);
   }
 };
 
@@ -482,7 +418,9 @@ const Kitty = {
     if (this.state !== 'cuddle' && this.state !== 'hop') { ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(Math.floor(this.x - 10), GROUND + 4, 20, 2); }
     const s = drawCat(n, flip, this.x, this.y + bob);
     // name tag
-    nameTag(CFG.cName, this.x, this.y - s.height - 5);
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(Math.floor(this.x - 14), Math.floor(this.y - s.height - 13), 28, 10);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center';
+    ctx.fillText('Kitty', Math.floor(this.x), Math.floor(this.y - s.height - 5));
   }
 };
 
@@ -520,7 +458,7 @@ function sideOf(x) { return Iustina.x <= x ? -1 : 1; } // which side of x Iustin
 window.action = function (type) {
   ac(); sound('click');
   const st = Kitty.stats;
-  if (Kitty.state === 'held' && type !== 'hold' && type !== 'pet') { bubble('Put ' + CFG.cName + ' down first', Iustina.x, Iustina.y - 50); return; }
+  if (Kitty.state === 'held' && type !== 'hold' && type !== 'pet') { bubble('Put Kitty down first', Iustina.x, Iustina.y - 50); return; }
   if (G.inBed && type !== 'bed' && type !== 'pet') { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
   switch (type) {
     case 'feed': {
@@ -688,183 +626,8 @@ function loop(now) {
   while (acc >= 16.667) { update(); acc -= 16.667; }
   draw(); requestAnimationFrame(loop);
 }
-// ===== SETUP SCREEN: photos -> suggested colours -> your own pixel pals =====
-const $ = id => document.getElementById(id);
-const CAT_FIELDS = [['fur', 'Fur'], ['points', 'Face, ears, paws'], ['eyes', 'Eyes']];
-const ME_FIELDS = [['hair', 'Hair'], ['skin', 'Skin'], ['top', 'Top'], ['jeans', 'Trousers'], ['shoes', 'Shoes']];
-let draft = Object.assign({}, DEFAULT_CFG), setupFromGame = false;
-
-const hex = (r, g, b) => '#' + [r, g, b].map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
-const unhex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-const lum = c => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
-const darken = (c, f) => c.map(v => v * f);
-
-function loadFile(file) {
-  return new Promise((res, rej) => {
-    const img = new Image(), u = URL.createObjectURL(file);
-    img.onload = () => { URL.revokeObjectURL(u); res(img); };
-    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('bad image')); };
-    img.src = u;
-  });
-}
-// Downscale to n x n. squash=false: centre square crop (good for faces/cats); true: whole photo stretched (so zones line up with head/body/legs).
-function sampleImg(img, n, squash) {
-  const c = document.createElement('canvas'); c.width = c.height = n;
-  const x = c.getContext('2d', { willReadFrequently: true });
-  x.imageSmoothingQuality = 'high';
-  if (squash) x.drawImage(img, 0, 0, n, n);
-  else { const s = Math.min(img.width, img.height); x.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, n, n); }
-  return { canvas: c, data: x.getImageData(0, 0, n, n).data, n };
-}
-function zoneAvg(s, x0, y0, x1, y1) {
-  let r = 0, g = 0, b = 0, k = 0;
-  for (let y = Math.floor(y0 * s.n); y < Math.ceil(y1 * s.n); y++) for (let x = Math.floor(x0 * s.n); x < Math.ceil(x1 * s.n); x++) {
-    const i = (y * s.n + x) * 4; r += s.data[i]; g += s.data[i + 1]; b += s.data[i + 2]; k++;
-  }
-  return k ? [r / k, g / k, b / k] : [128, 128, 128];
-}
-function kmeans(px, k) {
-  const sorted = px.slice().sort((a, b) => lum(a) - lum(b));
-  let cen = Array.from({ length: k }, (_, i) => sorted[Math.floor((i + 0.5) * sorted.length / k)].slice());
-  let groups = [];
-  for (let it = 0; it < 8; it++) {
-    groups = Array.from({ length: k }, () => []);
-    px.forEach(p => { let bi = 0, bd = 1e9; cen.forEach((c, i) => { const d = (p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2 + (p[2] - c[2]) ** 2; if (d < bd) { bd = d; bi = i; } }); groups[bi].push(p); });
-    cen = groups.map((g, i) => g.length ? [0, 1, 2].map(ch => g.reduce((a, p) => a + p[ch], 0) / g.length) : cen[i]);
-  }
-  return cen.map((c, i) => ({ c, n: groups[i].length }));
-}
-function analyzeCat(img) {
-  const s = sampleImg(img, 32, false), px = [];
-  for (let y = 8; y < 24; y++) for (let x = 8; x < 24; x++) { const i = (y * 32 + x) * 4; px.push([s.data[i], s.data[i + 1], s.data[i + 2]]); }
-  const cl = kmeans(px, 3).filter(o => o.n > 0), out = {};
-  const fur = cl.slice().sort((a, b) => b.n - a.n)[0].c;
-  const dark = cl.slice().sort((a, b) => lum(a.c) - lum(b.c))[0].c;
-  out.fur = hex(...fur);
-  out.points = hex(...(lum(fur) - lum(dark) > 40 ? dark : darken(fur, 0.55)));
-  // eyes: saturated, bright, cyan/green/amber pixels in the central area
-  let er = 0, eg = 0, eb = 0, ek = 0;
-  px.forEach(([r, g, b]) => {
-    const mx = Math.max(r, g, b), mn = Math.min(r, g, b); if (mx < 130 || (mx - mn) / mx < 0.45) return;
-    let h = mx === r ? ((g - b) / (mx - mn)) % 6 : mx === g ? (b - r) / (mx - mn) + 2 : (r - g) / (mx - mn) + 4; h = (h * 60 + 360) % 360;
-    if (h >= 45 && h <= 200) { er += r; eg += g; eb += b; ek++; }
-  });
-  if (ek >= 3) out.eyes = hex(er / ek, eg / ek, eb / ek);
-  return out;
-}
-function analyzePerson(img) {
-  const s = sampleImg(img, 40, true), z = (a, b, c, d) => hex(...zoneAvg(s, a, b, c, d));
-  return { hair: z(0.38, 0.03, 0.62, 0.16), skin: z(0.42, 0.2, 0.58, 0.3), top: z(0.36, 0.45, 0.64, 0.6), jeans: z(0.36, 0.68, 0.64, 0.84), shoes: z(0.3, 0.92, 0.7, 0.99) };
-}
-// pixel-art thumbnail: tiny crop, limited colour levels, shown with hard edges
-function pixelThumb(img, canvas) {
-  const s = sampleImg(img, 24, false), x = canvas.getContext('2d'), id = x.createImageData(24, 24);
-  for (let i = 0; i < s.data.length; i += 4) for (let k = 0; k < 3; k++) id.data[i + k] = Math.round(s.data[i + k] / 255 * 5) * 51;
-  for (let i = 3; i < s.data.length; i += 4) id.data[i] = 255;
-  x.putImageData(id, 0, 0);
-}
-
-function buildPickers(id, fields) {
-  const box = $(id); box.innerHTML = '';
-  fields.forEach(([key, label]) => {
-    const row = document.createElement('div'); row.className = 'row';
-    const lab = document.createElement('span'); lab.textContent = label;
-    const inp = document.createElement('input'); inp.type = 'color'; inp.id = 'c-' + key;
-    inp.addEventListener('input', () => { draft[key] = inp.value; renderPreviews(); });
-    row.append(lab, inp); box.append(row);
-  });
-}
-function renderPreviews() {
-  const sp = buildSprites(palFrom(draft));
-  [['pv-cat', sp.cat_sit], ['pv-me', sp.girl_idle]].forEach(([id, spr]) => {
-    const cv = $(id), x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
-    x.fillStyle = '#2c2c5c'; x.fillRect(0, 0, cv.width, cv.height);
-    x.fillStyle = '#1f3b2a'; x.fillRect(0, cv.height - 6, cv.width, 6);
-    x.drawImage(spr, Math.floor((cv.width - spr.width) / 2), cv.height - 4 - spr.height);
-  });
-}
-function syncSetup() {
-  [...CAT_FIELDS, ...ME_FIELDS].forEach(([k]) => { $('c-' + k).value = draft[k]; });
-  $('in-cname').value = draft.cName; $('in-pname').value = draft.pName; renderPreviews();
-}
-function openSetup(fromGame) {
-  draft = Object.assign({}, CFG); setupFromGame = fromGame; $('err').textContent = '';
-  $('in-cphoto').value = ''; $('in-pphoto').value = '';
-  [$('th-cat'), $('th-me')].forEach(c => c.getContext('2d').clearRect(0, 0, 24, 24));
-  $('setup-cancel').style.display = fromGame ? 'block' : 'none';
-  syncSetup(); $('setup').style.display = 'flex'; $('setup').scrollTop = 0;
-}
-function closeSetup() { $('setup').style.display = 'none'; }
-async function onPhoto(file, thumbId, analyze) {
-  if (!file) return;
-  try {
-    const img = await loadFile(file); $('err').textContent = '';
-    pixelThumb(img, $(thumbId)); Object.assign(draft, analyze(img)); syncSetup();
-  } catch (e) { $('err').textContent = 'Could not read that photo. Try a JPG or PNG.'; }
-}
-$('in-cphoto').addEventListener('change', e => onPhoto(e.target.files[0], 'th-cat', analyzeCat));
-$('in-pphoto').addEventListener('change', e => onPhoto(e.target.files[0], 'th-me', analyzePerson));
-$('in-cname').addEventListener('input', e => { draft.cName = e.target.value; });
-$('in-pname').addEventListener('input', e => { draft.pName = e.target.value; });
-$('setup-reset').addEventListener('click', () => { draft = Object.assign({}, DEFAULT_CFG); syncSetup(); });
-$('setup-cancel').addEventListener('click', closeSetup);
-
-function applyCfg(c) {
-  CFG = Object.assign({}, c);
-  Sprites = buildSprites(palFrom(CFG));
-  document.title = CFG.pName + ' & ' + CFG.cName;
-  try { localStorage.setItem('pixelpals_cfg', JSON.stringify(CFG)); } catch (e) {}
-}
-$('setup-go').addEventListener('click', () => {
-  ac();
-  draft.cName = ($('in-cname').value.trim() || DEFAULT_CFG.cName).slice(0, 12);
-  draft.pName = ($('in-pname').value.trim() || DEFAULT_CFG.pName).slice(0, 12);
-  applyCfg(draft); closeSetup(); updateUI();
-  bubble('Hi ' + CFG.cName + '!', Iustina.x, Iustina.y - 50);
-});
-$('cust').addEventListener('click', () => openSetup(true));
-
-// ===== GIFT LINKS: your pals' look is packed into the link itself (no photos, no server) =====
-function sanitizeCfg(d) {
-  const out = Object.assign({}, DEFAULT_CFG);
-  Object.keys(DEFAULT_CFG).forEach(k => {
-    if (typeof d[k] !== 'string') return;
-    if (k === 'pName' || k === 'cName') out[k] = d[k].trim().slice(0, 12) || DEFAULT_CFG[k];
-    else if (/^#[0-9a-f]{6}$/i.test(d[k])) out[k] = d[k];
-  });
-  out.m = typeof d.m === 'string' ? d.m.slice(0, 40) : '';
-  return out;
-}
-function readGift() {
-  const m = location.hash.match(/^#g=([A-Za-z0-9+/=_-]+)$/); if (!m) return null;
-  try { return sanitizeCfg(JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))))); } catch (e) { return null; }
-}
-$('gift').addEventListener('click', () => {
-  const msg = (prompt('Add a short message for the person you are gifting this to (optional):', '') || '').slice(0, 40);
-  const data = Object.assign({}, CFG, { m: msg });
-  const code = btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_');
-  const url = location.href.split('#')[0] + '#g=' + code;
-  const done = () => bubble('Gift link copied!', Iustina.x, Iustina.y - 50);
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(() => prompt('Copy this gift link:', url));
-  else prompt('Copy this gift link:', url);
-});
-
-// ===== START =====
-buildPickers('cols-cat', CAT_FIELDS); buildPickers('cols-me', ME_FIELDS);
 load();
-(function start() {
-  const gift = readGift();
-  if (gift) {
-    applyCfg(gift); history.replaceState(null, '', location.href.split('#')[0]);
-    bubble('Hi ' + CFG.cName + '!', Iustina.x, Iustina.y - 50);
-    if (gift.m) setTimeout(() => bubble('♥ ' + gift.m, Iustina.x + 20, Iustina.y - 66), 1200);
-    return;
-  }
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem('pixelpals_cfg') || 'null'); } catch (e) {}
-  if (saved) { applyCfg(sanitizeCfg(saved)); bubble('Hi ' + CFG.cName + '!', Iustina.x, Iustina.y - 50); }
-  else openSetup(false);
-})();
+bubble('Hi Kitty!', Iustina.x, Iustina.y - 50);
 requestAnimationFrame(loop);
 </script>
 </body>
