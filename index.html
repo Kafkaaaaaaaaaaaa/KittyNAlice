@@ -230,11 +230,12 @@ function outlineRows(raw) {
     return hit ? 'O' : '.';
   }).join(''));
 }
-const SC = 3; // screen pixels per sprite cell
+const SC = 3; // screen pixels per sprite cell (girl)
+const CAT_SC = 2; // Kitty is drawn smaller
 const Sprites = {};
 (function compile() {
-  const sc = SC;
   for (const [name, raw] of Object.entries(SPR)) {
+    const sc = /^cat/.test(name) ? CAT_SC : SC;
     const rows = /^(cat|girl)/.test(name) ? outlineRows(raw) : raw;
     const w = Math.max(...rows.map(r => r.length)), h = rows.length;
     const c = document.createElement('canvas'); c.width = w * sc; c.height = h * sc;
@@ -322,8 +323,8 @@ function drawCat(name, flip, x, y) {
   ctx.drawImage(s, dx, dy);
   const a = ACC[name];
   if (a) {
-    const Wc = s.width / SC;
-    const cell = (c, r, col) => { const cc = flip ? Wc - 1 - c : c; ctx.fillStyle = col; ctx.fillRect(dx + cc * SC, dy + r * SC, SC, SC); };
+    const Wc = s.width / CAT_SC;
+    const cell = (c, r, col) => { const cc = flip ? Wc - 1 - c : c; ctx.fillStyle = col; ctx.fillRect(dx + cc * CAT_SC, dy + r * CAT_SC, CAT_SC, CAT_SC); };
     if (bondLevel() >= 2) a.bow.forEach(([c, r]) => cell(c, r, '#e8606c'));
     if (bondLevel() >= 3) a.bell.forEach(([c, r]) => cell(c, r, '#f4c430'));
   }
