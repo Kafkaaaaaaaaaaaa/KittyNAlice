@@ -16,12 +16,14 @@
   .bar { width:64px; height:9px; background:#000; border:2px solid var(--border); margin-top:3px; }
   .fill { height:100%; width:100%; transition:width .3s; }
   .hud { width:100%; display:flex; justify-content:space-between; font-size:12px; }
-  #mute { cursor:pointer; }
+  .lnk { cursor:pointer; text-decoration:underline; }
   canvas { width:100%; display:block; aspect-ratio:16/9; image-rendering:pixelated; image-rendering:crisp-edges; background:#111; cursor:pointer; }
-  .controls { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:10px; background:var(--ui); border-top:4px solid var(--border); }
+  .controls { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:10px; background:var(--ui); border-top:4px solid var(--border); }
   button { background:#fff; border:3px solid var(--border); color:var(--text); font-family:inherit; font-weight:bold;
-           font-size:clamp(11px,3vw,15px); padding:10px 4px; cursor:pointer; box-shadow:2px 2px 0 var(--border); text-transform:uppercase; }
+           font-size:clamp(10px,2.8vw,14px); padding:10px 4px; cursor:pointer; box-shadow:2px 2px 0 var(--border); text-transform:uppercase; }
   button:active { transform:translate(2px,2px); box-shadow:none; }
+  .tab { grid-column:span 2; }
+  .tab.on { background:var(--border); color:#fff; }
   .hint { text-align:center; color:#cfc3a8; font-size:11px; padding:6px; }
 </style>
 </head>
@@ -32,32 +34,37 @@
     <div class="stat">Happy<div class="bar"><div class="fill" id="b-happy" style="background:#d95763"></div></div></div>
     <div class="stat">Energy<div class="bar"><div class="fill" id="b-energy" style="background:#5b6ee1"></div></div></div>
     <div class="stat">Clean<div class="bar"><div class="fill" id="b-clean" style="background:#5fcde4"></div></div></div>
-    <div class="hud"><span>Bond Lv <span id="bond">1</span> &nbsp; Coins <span id="coins">0</span></span><span id="mute">[Mute]</span></div>
+    <div class="hud"><span>Bond Lv <span id="bond">1</span> &nbsp; Coins <span id="coins">0</span></span><span class="lnk" id="mute">[Mute]</span></div>
   </div>
   <canvas id="c" width="320" height="180"></canvas>
   <div class="controls">
+    <button class="tab" id="tab-kitty">Kitty</button>
+    <button class="tab" id="tab-ticky">Ticky</button>
     <button onclick="action('feed')">Feed</button>
     <button onclick="action('water')">Water</button>
-    <button onclick="action('play')">Play</button>
-    <button onclick="action('pet')">Pet</button>
-    <button onclick="action('brush')">Brush</button>
     <button onclick="action('treat')">Treat</button>
-    <button onclick="action('sleep')">Sleep</button>
+    <button onclick="action('brush')">Brush</button>
+    <button onclick="action('play')">Play</button>
+    <button onclick="action('playboth')">Play Both</button>
+    <button onclick="action('pet')">Pet</button>
     <button onclick="action('hold')">Pick Up</button>
+    <button onclick="action('sleep')">Sleep</button>
     <button id="bed-btn" onclick="action('bed')">Bed</button>
   </div>
-  <div class="hint">Tap Kitty to pet her. Tap the ground to walk Iustina there. Press Bed to tuck Iustina in and let Kitty cuddle.</div>
+  <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The cat you leave goes into the cathouse. Play Both brings them out together.</div>
 </div>
 
 <script>
 // ===== SETUP =====
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+const $ = id => document.getElementById(id);
+const canvas = $('c'), ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
-const W = 320, H = 180, GROUND = 150, BED_X = 262;
-const G = { time: 0, coins: 0, muted: false, particles: [], bubbles: [], bowl: null, toy: null, treats: 0, inBed: false };
+const W = 320, H = 180, GROUND = 150, BED_X = 262, HOUSE_X = 46;
+const G = { time: 0, frame: 0, coins: 0, muted: false, particles: [], bubbles: [], bowl: null, toy: null, treats: 0, inBed: false };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const bondLevel = () => Math.floor(G.coins / 10) + 1;
+let ACTIVE = 'kitty';
+const cat = () => CATS[ACTIVE];
 
 // ===== AUDIO =====
 let audioCtx = null;
@@ -97,17 +104,20 @@ function sound(type) {
     o.start(t); o.stop(t + 0.11);
   }
 }
-const muteEl = document.getElementById('mute');
-muteEl.addEventListener('click', () => { G.muted = !G.muted; muteEl.textContent = G.muted ? '[Unmute]' : '[Mute]'; });
+$('mute').addEventListener('click', () => { G.muted = !G.muted; $('mute').textContent = G.muted ? '[Unmute]' : '[Mute]'; });
 
 // ===== PIXEL SPRITES =====
+// Kitty uses PAL; Ticky uses PAL2 (same shapes, tabby recolour).
 const PAL = {
-  S:'#f1c27d', H:'#9a4a2c', W:'#f4f1ee', J:'#8fb0dc', R:'#d95763', L:'#c0392b', T:'#999999', K:'#2b1d1a',
-  C:'#e8cfa6', B:'#4a3028', E:'#5fcde4', D:'#d95763', F:'#c97b3d', O:'#1e1410', h:'#c46a3a'
+  S:'#f1c27d', H:'#9a4a2c', h:'#c46a3a', W:'#f4f1ee', J:'#8fb0dc', R:'#d95763', L:'#c0392b', T:'#999999', K:'#2b1d1a',
+  C:'#e8cfa6', B:'#4a3028', E:'#5fcde4', D:'#d95763', F:'#c97b3d', O:'#1e1410', Q:'#8a5a3b', P:'#d8c3a5'
 };
+const PAL2 = Object.assign({}, PAL, { C:'#c9a57c', B:'#5b4331', E:'#8fbf6a', D:'#c9826b' });
+const SC = 3;      // screen px per sprite cell (Iustina)
+const CAT_SC = 2;  // screen px per sprite cell (cats)
 const GIRL_HEAD = [
   ".....HHHHHH.....",
-  "....HHhHHhHH....",
+  "....HHHHHHHH....",
   "...HHSSSSSSHH...",
   "...HHSKSSKSHH...",
   "...HHSSSSSSHH...",
@@ -212,42 +222,57 @@ const SPR = {
     ".BCCCCCCCCCCCBB.",
     "BCCCCCCCCCCCCCCBB",
     "BBBBBBBBBBBBBBBBB"],
-  bowl: ["BBBBBBBB", "BFFFFFFB", ".BBBBBB."],
+  house: [
+    "........QQ........",
+    "......QQQQQQ......",
+    "....QQQQQQQQQQ....",
+    "..QQQQQQQQQQQQQQ..",
+    "QQQQQQQQQQQQQQQQQQ",
+    "PPPPPPPPPPPPPPPPPP",
+    "PPPPPPPPPPPPPPPPPP",
+    "PPPPPPKKKKKKPPPPPP",
+    "PPPPPPKKKKKKPPPPPP",
+    "PPPPPPKKKKKKPPPPPP",
+    "PPPPPPKKKKKKPPPPPP",
+    "PPPPPPPPPPPPPPPPPP"],
+  bowl: ["KKKKKKKK", "KFFFFFFK", ".KKKKKK."],
   toy: [".DDD.", "DDLDD", "DLDDD", "DDDLD", ".DDD."]
 };
-// Adds a 1-cell dark outline (and transparent border) around a sprite grid.
+
+// Adds a 1-cell dark outline (plus transparent border) around a sprite grid.
 function outlineRows(raw) {
   const W0 = Math.max(...raw.map(r => r.length));
   const pad = '.'.repeat(W0 + 2);
   const g = [pad, ...raw.map(r => '.' + r.padEnd(W0, '.') + '.'), pad];
-  const H = g.length, W = W0 + 2;
+  const Hh = g.length, Ww = W0 + 2;
   return g.map((row, y) => row.split('').map((ch, x) => {
     if (ch !== '.') return ch;
     const hit = [[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dx, dy]) => {
       const yy = y + dy, xx = x + dx;
-      return yy >= 0 && yy < H && xx >= 0 && xx < W && g[yy][xx] !== '.';
+      return yy >= 0 && yy < Hh && xx >= 0 && xx < Ww && g[yy][xx] !== '.';
     });
     return hit ? 'O' : '.';
   }).join(''));
 }
-const SC = 3; // screen pixels per sprite cell (girl)
-const CAT_SC = 2; // Kitty is drawn smaller
 const Sprites = {};
-(function compile() {
+function compileSprites(pal, prefix, filter) {
   for (const [name, raw] of Object.entries(SPR)) {
+    if (filter && !filter(name)) continue;
     const sc = /^cat/.test(name) ? CAT_SC : SC;
-    const rows = /^(cat|girl)/.test(name) ? outlineRows(raw) : raw;
+    const rows = /^(cat|girl|house)/.test(name) ? outlineRows(raw) : raw;
     const w = Math.max(...rows.map(r => r.length)), h = rows.length;
     const c = document.createElement('canvas'); c.width = w * sc; c.height = h * sc;
     const x = c.getContext('2d');
     rows.forEach((row, yy) => { for (let xx = 0; xx < w; xx++) {
-      const ch = row[xx]; if (ch && ch !== '.') { x.fillStyle = PAL[ch] || '#ff00ff'; x.fillRect(xx * sc, yy * sc, sc, sc); }
+      const ch = row[xx]; if (ch && ch !== '.') { x.fillStyle = pal[ch] || '#ff00ff'; x.fillRect(xx * sc, yy * sc, sc, sc); }
     }});
     const f = document.createElement('canvas'); f.width = c.width; f.height = c.height;
     const fx = f.getContext('2d'); fx.translate(f.width, 0); fx.scale(-1, 1); fx.drawImage(c, 0, 0);
-    Sprites[name] = c; Sprites[name + '_flip'] = f;
+    Sprites[prefix + name] = c; Sprites[prefix + name + '_flip'] = f;
   }
-})();
+}
+compileSprites(PAL, '', null);
+compileSprites(PAL2, 'b_', n => /^cat/.test(n));
 
 // ===== BACKGROUND (pre-rendered) =====
 const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
@@ -257,18 +282,14 @@ const stars = [];
   const sky = ['#0d0d1f', '#12122a', '#171736', '#1d1d42', '#242450', '#2c2c5c'];
   sky.forEach((c, i) => { b.fillStyle = c; b.fillRect(0, i * 18, W, 19); });
   for (let i = 0; i < 40; i++) stars.push({ x: Math.random() * W, y: Math.random() * 90, p: Math.random() * 6 });
-  // moon (pixel circle)
   b.fillStyle = '#f3ecd0';
   for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) if (dx * dx + dy * dy <= 81) b.fillRect(262 + dx, 30 + dy, 1, 1);
   b.fillStyle = '#d8cfae'; b.fillRect(257, 27, 3, 3); b.fillRect(266, 34, 2, 2);
-  // hills
   b.fillStyle = '#16203a';
   for (let x = 0; x < W; x++) b.fillRect(x, 100 + Math.sin(x / 38) * 8 + Math.sin(x / 13) * 2, 1, 40);
-  // trees
   const tree = (tx, th) => { b.fillStyle = '#0b1424'; b.fillRect(tx, 112 - th, 5, th + 8);
     for (let r = 0; r < 5; r++) b.fillRect(tx - 12 + r * 2, 112 - th - 14 + r * 4, 29 - r * 4, 6); };
   tree(18, 20); tree(64, 14); tree(236, 22); tree(292, 16);
-  // grass
   b.fillStyle = '#1f3b2a'; b.fillRect(0, 118, W, H - 118);
   b.fillStyle = '#26492f'; b.fillRect(0, 118, W, 3);
   for (let i = 0; i < 260; i++) {
@@ -277,15 +298,14 @@ const stars = [];
   }
   for (let i = 0; i < 14; i++) { b.fillStyle = ['#e8cfa6', '#d95763', '#e9a8c9'][i % 3]; b.fillRect(Math.floor(Math.random() * W), 126 + Math.floor(Math.random() * 50), 2, 2); }
   for (let i = 0; i < 8; i++) { b.fillStyle = '#b8782b'; b.fillRect(Math.floor(Math.random() * W), 130 + Math.floor(Math.random() * 45), 3, 2); }
-  // fence
   b.fillStyle = '#3a2a22';
   for (let x = 0; x < W; x += 12) b.fillRect(x, 106, 4, 18);
   b.fillRect(0, 111, W, 2); b.fillRect(0, 118, W, 2);
 })();
 
-// ===== ENTITIES =====
+// ===== IUSTINA =====
 const Iustina = {
-  x: 80, y: GROUND, dir: 1, state: 'idle', timer: 0, targetX: null, cb: null, busy: false,
+  x: 130, y: GROUND, dir: 1, state: 'idle', timer: 0, targetX: null, cb: null, busy: false,
   goTo(x, cb) { this.targetX = clamp(x, 18, W - 18); this.cb = cb || null; this.state = 'walk'; },
   crouchFor(ms, then) { this.state = 'crouch'; setTimeout(() => { this.state = 'idle'; if (then) then(); }, ms); },
   update() {
@@ -300,6 +320,8 @@ const Iustina = {
     if (this.state === 'lie') {
       const s = Sprites.girl_lie;
       ctx.drawImage(s, BED_X - 30, GROUND - 8 - s.height + ((Math.floor(this.timer / 50) % 2) ? 1 : 0));
+      ctx.fillStyle = '#8f6fb5'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 7);
+      ctx.fillStyle = '#a98bd0'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 1);
       return;
     }
     let n = 'girl_idle';
@@ -312,16 +334,17 @@ const Iustina = {
   }
 };
 
-// Accessories are placed in padded sprite-grid cells (SC screen px per cell).
+// ===== CATS =====
+// Accessories (collar bow, bell) in padded sprite-grid cells, used by Kitty and Ticky.
 const ACC = {
   cat_sit: { bow: [[5, 8], [6, 8]], bell: [[8, 9]] },
   cat_beg: { bow: [[5, 8], [6, 8]], bell: [[8, 9]] }
 };
-function drawCat(name, flip, x, y) {
-  const s = Sprites[name + (flip ? '_flip' : '')];
+function drawCat(pre, n, flip, x, y) {
+  const s = Sprites[pre + n + (flip ? '_flip' : '')];
   const dx = Math.floor(x - s.width / 2), dy = Math.floor(y - s.height);
   ctx.drawImage(s, dx, dy);
-  const a = ACC[name];
+  const a = ACC[n];
   if (a) {
     const Wc = s.width / CAT_SC;
     const cell = (c, r, col) => { const cc = flip ? Wc - 1 - c : c; ctx.fillStyle = col; ctx.fillRect(dx + cc * CAT_SC, dy + r * CAT_SC, CAT_SC, CAT_SC); };
@@ -330,228 +353,310 @@ function drawCat(name, flip, x, y) {
   }
   return s;
 }
+function nameTag(text, x, y) {
+  ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center';
+  const w = Math.ceil(ctx.measureText(text).width) + 8;
+  ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(Math.floor(x - w / 2), Math.floor(y - 8), w, 10);
+  ctx.fillStyle = '#fff'; ctx.fillText(text, Math.floor(x), Math.floor(y));
+}
 
-const Kitty = {
-  x: 170, y: GROUND + 4, dir: -1, state: 'idle', timer: 0, stateT: 0, freeze: 0,
-  stats: { hunger: 60, happy: 60, energy: 90, clean: 90 },
-  setState(s) { this.state = s; this.stateT = 0; },
-  update() {
-    this.timer++; this.stateT++;
-    const st = this.stats;
-    if (this.timer % 60 === 0) {
-      st.hunger = clamp(st.hunger - 0.4, 0, 100);
-      st.clean = clamp(st.clean - 0.1, 0, 100);
-      st.happy = clamp(st.happy - (st.hunger < 20 ? 0.5 : 0.2), 0, 100);
-      if (this.state !== 'sleep' && this.state !== 'cuddle') st.energy = clamp(st.energy - 0.25, 0, 100);
-      if (G.treats > 0 && this.timer % 3600 === 0) G.treats--;
-      updateUI(); save();
-    }
-    if (this.state === 'held') {
-      this.x = Iustina.x + Iustina.dir * 9; this.y = Iustina.y - 8;
-      if (this.timer % 60 === 0) st.happy = clamp(st.happy + 0.6, 0, 100);
-      return;
-    }
-    if (this.state === 'cuddle') {
-      this.x = BED_X - 8; this.y = GROUND - 9;
-      if (this.stateT % 60 === 0) {
-        st.energy = clamp(st.energy + 3, 0, 100); st.happy = clamp(st.happy + 1, 0, 100); updateUI();
-        const z = this.stateT % 120 === 0;
-        particle(z ? 'Zzz' : '♥', this.x + 8, this.y - 14, z ? '#cfd8ff' : '#ff6f91');
-        if (this.stateT % 240 === 0) sound('purr');
+function makeCat(name, pre, x0, stats0) {
+  return {
+    name, pre, x: x0, y: GROUND + 4, dir: -1, state: 'idle', timer: 0, stateT: 0, freeze: 0, hopFromX: 0,
+    stats: Object.assign({ hunger: 60, happy: 60, energy: 90, clean: 90 }, stats0),
+    setState(s) { this.state = s; this.stateT = 0; },
+    update() {
+      this.timer++; this.stateT++;
+      const st = this.stats;
+      if (this.timer % 60 === 0) {
+        st.hunger = clamp(st.hunger - 0.4, 0, 100);
+        st.clean = clamp(st.clean - 0.1, 0, 100);
+        st.happy = clamp(st.happy - (st.hunger < 20 ? 0.5 : 0.2), 0, 100);
+        if (!['sleep', 'cuddle', 'house'].includes(this.state)) st.energy = clamp(st.energy - 0.25, 0, 100);
+        updateUI(); save();
       }
-      return;
-    }
-    if (this.state === 'toBed') {
-      const dx = (BED_X - 46) - this.x;
-      if (Math.abs(dx) > 3) { this.dir = dx > 0 ? 1 : -1; this.x += this.dir * 1.6; }
-      else { this.hopFromX = this.x; this.setState('hop'); }
-      this.y = GROUND + 4; return;
-    }
-    if (this.state === 'hop') {
-      const t = Math.min(1, this.stateT / 40);
-      this.dir = 1;
-      this.x = this.hopFromX + (BED_X - 8 - this.hopFromX) * t;
-      this.y = (GROUND + 4) + ((GROUND - 9) - (GROUND + 4)) * t - Math.sin(Math.PI * t) * 18;
-      if (t >= 1) { this.setState('cuddle'); sound('purr'); particle('♥', this.x, this.y - 16, '#ff6f91'); bubble('Purr...', this.x, this.y - 36); }
-      return;
-    }
-    this.y = GROUND + 4;
-    if (this.state === 'wait') return;
-
-    if (this.state === 'petted') { if (this.stateT > this.freeze) this.setState('idle'); return; }
-
-    if (this.state === 'idle') {
-      if (G.toy && st.energy > 8) { this.setState('walk'); return; }
-      if (G.bowl && st.hunger < 97) { this.setState('walk'); return; }
-      if (st.energy < 20) { this.setState('sleep'); return; }
-      if (st.hunger < 30 && Math.random() < 0.006) { bubble('Feed me!', this.x, this.y - 34); sound('meow'); this.setState('beg'); return; }
-      if (st.happy < 25 && Math.random() < 0.004) { bubble('mrrp...', this.x, this.y - 34); }
-      if (Math.random() < 0.012) { this.setState('walk'); this.dir = Math.random() < 0.5 ? 1 : -1; this.stateT = 0; }
-    }
-    else if (this.state === 'beg') { if (this.stateT > 120) this.setState('idle'); }
-    else if (this.state === 'walk') {
-      const target = G.toy ? G.toy : G.bowl;
-      if (target) {
-        const dx = target.x - this.x;
-        if (Math.abs(dx) > 6) { this.dir = dx > 0 ? 1 : -1; this.x += this.dir * (G.toy ? 1.5 : 1.0); }
-        else if (G.toy) { this.setState('play'); }
-        else { this.setState('eat'); }
-      } else {
-        this.x += this.dir * 0.5;
-        if (this.x < 20 || this.x > W - 20 || this.stateT > 90 + Math.random() * 100) this.setState('idle');
+      if (this.state === 'house') return;
+      if (this.state === 'toHouse') {
+        const dx = HOUSE_X - this.x;
+        if (Math.abs(dx) > 2) { this.dir = dx > 0 ? 1 : -1; this.x += this.dir * 1.6; }
+        else { this.x = HOUSE_X; this.setState('house'); }
+        this.y = GROUND + 4; return;
       }
-    }
-    else if (this.state === 'eat') {
-      if (!G.bowl) { this.setState('idle'); return; }
-      if (this.stateT % 30 === 0) {
-        st.hunger = clamp(st.hunger + 8, 0, 100); sound('eat'); updateUI();
-        if (st.hunger >= 100 || this.stateT > 420) {
-          G.bowl = null; this.setState('idle'); bubble('Purr...', this.x, this.y - 34); sound('purr'); addCoins(1);
+      if (this.state === 'outHouse') {
+        this.dir = 1; this.x += 1.2; this.y = GROUND + 4;
+        if (this.x >= HOUSE_X + 30) this.setState('idle');
+        return;
+      }
+      if (this.state === 'held') {
+        this.x = Iustina.x + Iustina.dir * 9; this.y = Iustina.y - 8;
+        if (this.timer % 60 === 0) st.happy = clamp(st.happy + 0.6, 0, 100);
+        return;
+      }
+      this.y = GROUND + 4;
+      if (this.state === 'wait') return;
+      if (this.state === 'petted') { if (this.stateT > this.freeze) this.setState('idle'); return; }
+      if (this.state === 'toBed') {
+        const dx = (BED_X - 46) - this.x;
+        if (Math.abs(dx) > 3) { this.dir = dx > 0 ? 1 : -1; this.x += this.dir * 1.6; }
+        else { this.hopFromX = this.x; this.setState('hop'); }
+        return;
+      }
+      if (this.state === 'hop') {
+        const t = Math.min(1, this.stateT / 40);
+        this.dir = 1;
+        this.x = this.hopFromX + (BED_X - 8 - this.hopFromX) * t;
+        this.y = (GROUND + 4) + ((GROUND - 9) - (GROUND + 4)) * t - Math.sin(Math.PI * t) * 18;
+        if (t >= 1) { this.setState('cuddle'); sound('purr'); particle('♥', this.x, this.y - 16, '#ff6f91'); bubble('Purr...', this.x, this.y - 36); }
+        return;
+      }
+      if (this.state === 'cuddle') {
+        this.x = BED_X - 8; this.y = GROUND - 9;
+        if (this.stateT % 60 === 0) {
+          st.energy = clamp(st.energy + 3, 0, 100); st.happy = clamp(st.happy + 1, 0, 100); updateUI();
+          const z = this.stateT % 120 === 0;
+          particle(z ? 'Zzz' : '♥', this.x + 8, this.y - 14, z ? '#cfd8ff' : '#ff6f91');
+          if (this.stateT % 240 === 0) sound('purr');
+        }
+        return;
+      }
+      if (this.state === 'idle') {
+        if (G.toy && st.energy > 8) { this.setState('walk'); return; }
+        if (G.bowl && st.hunger < 97) { this.setState('walk'); return; }
+        if (st.energy < 20) { this.setState('sleep'); return; }
+        if (st.hunger < 30 && Math.random() < 0.006) { bubble('Feed me!', this.x, this.y - 34); sound('meow'); this.setState('beg'); return; }
+        if (st.happy < 25 && Math.random() < 0.004) bubble('mrrp...', this.x, this.y - 34);
+        if (Math.random() < 0.012) { this.dir = Math.random() < 0.5 ? 1 : -1; this.setState('walk'); }
+      }
+      else if (this.state === 'beg') { if (this.stateT > 120) this.setState('idle'); }
+      else if (this.state === 'walk') {
+        const target = G.toy || G.bowl;
+        if (target) {
+          const dx = target.x - this.x;
+          if (Math.abs(dx) > 6) { this.dir = dx > 0 ? 1 : -1; this.x += this.dir * (G.toy ? 1.5 : 1.0); }
+          else this.setState(G.toy ? 'play' : 'eat');
+        } else {
+          this.x += this.dir * 0.5;
+          if (this.x < 20 || this.x > W - 20 || this.stateT > 90 + Math.random() * 100) this.setState('idle');
         }
       }
-    }
-    else if (this.state === 'play') {
-      if (!G.toy) { this.setState('idle'); return; }
-      G.toy.x += Math.sin(this.stateT / 8) * 1.2; G.toy.x = clamp(G.toy.x, 20, W - 20);
-      if (this.stateT % 15 === 0) {
-        st.happy = clamp(st.happy + 2, 0, 100); st.energy = clamp(st.energy - 1.2, 0, 100); updateUI();
-        if (this.stateT % 60 === 0) particle('\u2665', this.x, this.y - 30, '#d95763');
+      else if (this.state === 'eat') {
+        if (!G.bowl) { this.setState('idle'); return; }
+        if (this.stateT % 30 === 0) {
+          st.hunger = clamp(st.hunger + 8, 0, 100); sound('eat'); updateUI();
+          if (st.hunger >= 100 || this.stateT > 420) {
+            G.bowl = null; this.setState('idle'); bubble('Purr...', this.x, this.y - 34); sound('purr'); addCoins(1);
+          }
+        }
       }
-      if (this.stateT > 600 || st.energy < 10) { G.toy = null; this.setState('idle'); bubble('Fun!', this.x, this.y - 34); addCoins(2); }
-    }
-    else if (this.state === 'sleep') {
-      if (this.stateT % 60 === 0) {
-        st.energy = clamp(st.energy + 4, 0, 100); particle('Zzz', this.x + 8, this.y - 16, '#cfd8ff'); updateUI();
-        if (st.energy >= 100) this.setState('idle');
+      else if (this.state === 'play') {
+        if (!G.toy) { this.setState('idle'); return; }
+        if (this === cat()) G.toy.x = clamp(G.toy.x + Math.sin(this.stateT / 8) * 1.2, 20, W - 20);
+        if (this.stateT % 15 === 0) {
+          st.happy = clamp(st.happy + 2, 0, 100); st.energy = clamp(st.energy - 1.2, 0, 100); updateUI();
+          if (this.stateT % 60 === 0) particle('♥', this.x, this.y - 30, '#d95763');
+        }
+        if (this.stateT > 600 || st.energy < 10) { G.toy = null; this.setState('idle'); bubble('Fun!', this.x, this.y - 34); addCoins(2); }
       }
+      else if (this.state === 'sleep') {
+        if (this.stateT % 60 === 0) {
+          st.energy = clamp(st.energy + 4, 0, 100); particle('Zzz', this.x + 8, this.y - 16, '#cfd8ff'); updateUI();
+          if (st.energy >= 100) this.setState('idle');
+        }
+      }
+      this.x = clamp(this.x, 14, W - 14);
+    },
+    draw() {
+      if (this.state === 'house') return;
+      let n = 'cat_sit', bob = 0;
+      const flip = this.dir === -1;
+      if (['walk', 'toBed', 'outHouse', 'toHouse'].includes(this.state)) n = (Math.floor(this.timer / 9) % 2) ? 'cat_walk1' : 'cat_walk2';
+      else if (this.state === 'sleep') { n = 'cat_sleep'; bob = (Math.floor(this.timer / 35) % 2) ? 1 : 0; }
+      else if (this.state === 'eat') bob = (Math.floor(this.timer / 10) % 2) ? 2 : 0;
+      else if (this.state === 'play') { n = 'cat_beg'; bob = -Math.abs(Math.sin(this.timer / 6)) * 5; }
+      else if (this.state === 'beg' || this.state === 'hop') n = 'cat_beg';
+      else if (this.state === 'cuddle') { n = 'cat_sleep'; bob = (Math.floor(this.timer / 40) % 2) ? 1 : 0; }
+      if (!['cuddle', 'hop', 'held'].includes(this.state)) {
+        ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(Math.floor(this.x - 10), GROUND + 4, 20, 2);
+      }
+      const s = drawCat(this.pre, n, flip, this.x, this.y + bob);
+      nameTag(this.name, this.x, this.y - s.height - 5);
     }
-    this.x = clamp(this.x, 14, W - 14);
-  },
-  draw() {
-    let n = 'cat_sit', bob = 0;
-    const flip = this.dir === -1;
-    if (this.state === 'walk') n = (Math.floor(this.timer / 9) % 2) ? 'cat_walk1' : 'cat_walk2';
-    else if (this.state === 'sleep') { n = 'cat_sleep'; bob = (Math.floor(this.timer / 35) % 2) ? 1 : 0; }
-    else if (this.state === 'eat') bob = (Math.floor(this.timer / 10) % 2) ? 2 : 0;
-    else if (this.state === 'play') { n = 'cat_beg'; bob = -Math.abs(Math.sin(this.timer / 6)) * 5; }
-    else if (this.state === 'beg') { n = 'cat_beg'; bob = (Math.floor(this.timer / 15) % 2) ? 1 : 0; }
-    else if (this.state === 'toBed') n = (Math.floor(this.timer / 9) % 2) ? 'cat_walk1' : 'cat_walk2';
-    else if (this.state === 'hop') n = 'cat_beg';
-    else if (this.state === 'cuddle') { n = 'cat_sleep'; bob = (Math.floor(this.timer / 40) % 2) ? 1 : 0; }
-    if (this.state !== 'cuddle' && this.state !== 'hop') { ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(Math.floor(this.x - 10), GROUND + 4, 20, 2); }
-    const s = drawCat(n, flip, this.x, this.y + bob);
-    // name tag
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(Math.floor(this.x - 14), Math.floor(this.y - s.height - 13), 28, 10);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center';
-    ctx.fillText('Kitty', Math.floor(this.x), Math.floor(this.y - s.height - 5));
-  }
+  };
+}
+
+const CATS = {
+  kitty: makeCat('Kitty', '', 170, {}),
+  ticky: makeCat('Ticky', 'b_', HOUSE_X, {})
 };
+
+// Puts the active cat outside and the others in the cathouse.
+function initCats() {
+  for (const id of Object.keys(CATS)) {
+    const c = CATS[id];
+    if (id === ACTIVE) { c.setState('idle'); c.dir = -1; }
+    else { c.x = HOUSE_X; c.setState('house'); }
+  }
+}
+
+// Switches the active cat. The one leaving walks into the cathouse.
+function switchTo(id) {
+  if (id === ACTIVE || !CATS[id]) return;
+  if (G.inBed) { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
+  if (Iustina.busy) return;
+  const old = cat(), nu = CATS[id];
+  if (old.state === 'held') { bubble('Put ' + old.name + ' down first', Iustina.x, Iustina.y - 50); return; }
+  ACTIVE = id;
+  old.setState('toHouse');
+  if (nu.state === 'house' || nu.state === 'toHouse') { nu.x = HOUSE_X; nu.setState('outHouse'); }
+  bubble('Hi ' + nu.name + '!', HOUSE_X + 20, GROUND - 40);
+  updateUI(); save();
+}
 
 // ===== EFFECTS =====
 function particle(text, x, y, color) { G.particles.push({ text, x, y, life: 70, color: color || '#fff' }); }
 function bubble(text, x, y) { G.bubbles.push({ text, x, y, life: 110 }); }
 function addCoins(n) {
   const before = bondLevel(); G.coins += n; sound('coin');
-  if (bondLevel() > before) { bubble('Bond level up!', Kitty.x, Kitty.y - 44); particle('\u2605', Kitty.x, Kitty.y - 30, '#f4c430'); }
+  if (bondLevel() > before) { bubble('Bond level up!', cat().x, cat().y - 44); particle('★', cat().x, cat().y - 30, '#f4c430'); }
   updateUI();
 }
 function updateUI() {
-  const s = Kitty.stats;
-  document.getElementById('b-hunger').style.width = s.hunger + '%';
-  document.getElementById('b-happy').style.width = s.happy + '%';
-  document.getElementById('b-energy').style.width = s.energy + '%';
-  document.getElementById('b-clean').style.width = s.clean + '%';
-  document.getElementById('coins').textContent = G.coins;
-  document.getElementById('bond').textContent = bondLevel();
+  const s = cat().stats;
+  $('b-hunger').style.width = s.hunger + '%';
+  $('b-happy').style.width = s.happy + '%';
+  $('b-energy').style.width = s.energy + '%';
+  $('b-clean').style.width = s.clean + '%';
+  $('coins').textContent = G.coins;
+  $('bond').textContent = bondLevel();
+  $('tab-kitty').classList.toggle('on', ACTIVE === 'kitty');
+  $('tab-ticky').classList.toggle('on', ACTIVE === 'ticky');
 }
-function save() { try { localStorage.setItem('iustina_kitty_v2', JSON.stringify({ stats: Kitty.stats, coins: G.coins, treats: G.treats })); } catch (e) {} }
+const SAVE_KEY = 'iustina_kitty_v3';
+function save() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ active: ACTIVE, kitty: CATS.kitty.stats, ticky: CATS.ticky.stats, coins: G.coins, treats: G.treats })); } catch (e) {}
+}
 function load() {
   try {
-    const d = JSON.parse(localStorage.getItem('iustina_kitty_v2') || 'null');
-    if (d) { Object.assign(Kitty.stats, d.stats); G.coins = d.coins || 0; G.treats = d.treats || 0; }
+    let d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!d) { // migrate the older single-cat save
+      const old = JSON.parse(localStorage.getItem('iustina_kitty_v2') || 'null');
+      if (old) d = { kitty: old.stats, coins: old.coins, treats: old.treats };
+    }
+    if (d) {
+      if (d.kitty) Object.assign(CATS.kitty.stats, d.kitty);
+      if (d.ticky) Object.assign(CATS.ticky.stats, d.ticky);
+      G.coins = d.coins || 0; G.treats = d.treats || 0;
+      if (d.active && CATS[d.active]) ACTIVE = d.active;
+    }
   } catch (e) {}
-  updateUI();
 }
 
 // ===== ACTIONS =====
-function startTask() { if (Iustina.busy || Kitty.state === 'held') return false; Iustina.busy = true; return true; }
+function startTask() { if (Iustina.busy || cat().state === 'held') return false; Iustina.busy = true; return true; }
 function endTask() { Iustina.busy = false; }
-function sideOf(x) { return Iustina.x <= x ? -1 : 1; } // which side of x Iustina stands on
+function sideOf(x) { return Iustina.x <= x ? -1 : 1; }
 
 window.action = function (type) {
   ac(); sound('click');
-  const st = Kitty.stats;
-  if (Kitty.state === 'held' && type !== 'hold' && type !== 'pet') { bubble('Put Kitty down first', Iustina.x, Iustina.y - 50); return; }
+  const c = cat(), st = c.stats;
+  if (c.state === 'held' && type !== 'hold' && type !== 'pet') { bubble('Put ' + c.name + ' down first', Iustina.x, Iustina.y - 50); return; }
   if (G.inBed && type !== 'bed' && type !== 'pet') { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
   switch (type) {
     case 'feed': {
-      if (st.hunger >= 95) { bubble('Not hungry', Kitty.x, Kitty.y - 34); return; }
+      if (st.hunger >= 95) { bubble('Not hungry', c.x, c.y - 34); return; }
       if (!startTask()) return;
-      const bx = clamp(Math.round(60 + Math.random() * 200), 40, W - 40);
+      const bx = clamp(Math.round(100 + Math.random() * 180), 100, W - 40);
       Iustina.goTo(bx - 22, () => {
         Iustina.dir = 1;
-        Iustina.crouchFor(700, () => { G.bowl = { x: bx }; if (Kitty.state === 'sleep') Kitty.setState('idle'); endTask(); });
+        Iustina.crouchFor(700, () => {
+          G.bowl = { x: bx };
+          Object.values(CATS).forEach(k => { if (k.state === 'sleep') k.setState('idle'); });
+          endTask();
+        });
       });
       break; }
     case 'water':
       st.hunger = clamp(st.hunger + 4, 0, 100); st.energy = clamp(st.energy + 3, 0, 100); st.happy = clamp(st.happy + 2, 0, 100);
-      bubble('Slurp!', Kitty.x, Kitty.y - 34); sound('eat'); addCoins(1); break;
-    case 'play': {
-      if (st.energy < 15) { bubble('Too sleepy...', Kitty.x, Kitty.y - 34); return; }
+      bubble('Slurp!', c.x, c.y - 34); sound('eat'); addCoins(1); break;
+    case 'play':
+    case 'playboth': {
+      if (st.energy < 15) { bubble('Too sleepy...', c.x, c.y - 34); return; }
       if (G.toy || !startTask()) return;
-      const tx = clamp(Math.round(60 + Math.random() * 200), 40, W - 40);
+      const both = type === 'playboth';
+      const tx = clamp(Math.round(100 + Math.random() * 180), 100, W - 40);
       Iustina.goTo(tx - 24, () => {
         Iustina.dir = 1;
-        Iustina.crouchFor(400, () => { G.toy = { x: tx }; if (Kitty.state === 'sleep') Kitty.setState('idle'); endTask(); });
+        Iustina.crouchFor(400, () => {
+          G.toy = { x: tx };
+          const who = both ? Object.values(CATS) : [c];
+          who.forEach(k => {
+            if (k.state === 'house' || k.state === 'toHouse') {
+              if (k.state === 'house') k.x = HOUSE_X;
+              k.setState('outHouse');
+            } else if (k.state === 'sleep') k.setState('idle');
+          });
+          endTask();
+        });
       });
       break; }
     case 'pet': {
+      if (c.state === 'held') { particle('♥', c.x, c.y - 24, '#ff6f91'); st.happy = clamp(st.happy + 2, 0, 100); sound('purr'); updateUI(); return; }
       if (G.inBed) {
-        if (Kitty.state === 'cuddle') { particle('♥', Kitty.x, Kitty.y - 18, '#ff6f91'); st.happy = clamp(st.happy + 2, 0, 100); sound('purr'); updateUI(); }
+        if (c.state === 'cuddle') { particle('♥', c.x, c.y - 18, '#ff6f91'); st.happy = clamp(st.happy + 2, 0, 100); sound('purr'); updateUI(); }
         return;
       }
-      if (Kitty.state === 'held') { particle('\u2665', Kitty.x, Kitty.y - 24, '#ff6f91'); st.happy = clamp(st.happy + 2, 0, 100); sound('purr'); updateUI(); return; }
       if (!startTask()) return;
-      Kitty.setState('wait');
-      Iustina.goTo(Kitty.x + sideOf(Kitty.x) * 24, () => {
-        Iustina.dir = Kitty.x > Iustina.x ? 1 : -1;
+      c.setState('wait');
+      Iustina.goTo(c.x + sideOf(c.x) * 24, () => {
+        Iustina.dir = c.x > Iustina.x ? 1 : -1;
         Iustina.state = 'crouch'; sound('purr');
-        let n = 0; const iv = setInterval(() => { particle('\u2665', Kitty.x + (Math.random() * 14 - 7), Kitty.y - 26, '#ff6f91'); if (++n >= 4) clearInterval(iv); }, 300);
+        let n = 0; const iv = setInterval(() => { particle('♥', c.x + (Math.random() * 14 - 7), c.y - 26, '#ff6f91'); if (++n >= 4) clearInterval(iv); }, 300);
         setTimeout(() => {
-          Iustina.state = 'idle'; st.happy = clamp(st.happy + 7, 0, 100); Kitty.freeze = 90; Kitty.setState('petted');
-          bubble('Purr~', Kitty.x, Kitty.y - 36); addCoins(1); endTask();
+          Iustina.state = 'idle'; st.happy = clamp(st.happy + 7, 0, 100); c.freeze = 90; c.setState('petted');
+          bubble('Purr~', c.x, c.y - 36); addCoins(1); endTask();
         }, 1300);
       });
       break; }
     case 'brush': {
       if (!startTask()) return;
-      Kitty.setState('wait');
-      Iustina.goTo(Kitty.x + sideOf(Kitty.x) * 24, () => {
-        Iustina.dir = Kitty.x > Iustina.x ? 1 : -1; Iustina.state = 'crouch';
-        let n = 0; const iv = setInterval(() => { particle('\u2728', Kitty.x + (Math.random() * 16 - 8), Kitty.y - 24, '#fff6a8'); if (++n >= 5) clearInterval(iv); }, 280);
+      c.setState('wait');
+      Iustina.goTo(c.x + sideOf(c.x) * 24, () => {
+        Iustina.dir = c.x > Iustina.x ? 1 : -1; Iustina.state = 'crouch';
+        let n = 0; const iv = setInterval(() => { particle('✨', c.x + (Math.random() * 16 - 8), c.y - 24, '#fff6a8'); if (++n >= 5) clearInterval(iv); }, 280);
         setTimeout(() => {
           Iustina.state = 'idle'; st.clean = clamp(st.clean + 25, 0, 100); st.happy = clamp(st.happy + 8, 0, 100);
-          Kitty.freeze = 60; Kitty.setState('petted'); sound('purr'); bubble('So fluffy!', Kitty.x, Kitty.y - 36); addCoins(1); endTask();
+          c.freeze = 60; c.setState('petted'); sound('purr'); bubble('So fluffy!', c.x, c.y - 36); addCoins(1); endTask();
         }, 1500);
       });
       break; }
     case 'treat':
       G.treats++;
-      if (G.treats > 3) { st.happy = clamp(st.happy - 10, 0, 100); st.energy = clamp(st.energy - 5, 0, 100); bubble('Too many treats... blegh', Kitty.x, Kitty.y - 34); }
-      else { st.hunger = clamp(st.hunger + 5, 0, 100); st.happy = clamp(st.happy + 8, 0, 100); bubble('Yum!', Kitty.x, Kitty.y - 34); particle('\u2665', Kitty.x, Kitty.y - 26, '#ff6f91'); sound('meow'); addCoins(1); }
+      if (G.treats > 3) { st.happy = clamp(st.happy - 10, 0, 100); st.energy = clamp(st.energy - 5, 0, 100); bubble('Too many treats... blegh', c.x, c.y - 34); }
+      else { st.hunger = clamp(st.hunger + 5, 0, 100); st.happy = clamp(st.happy + 8, 0, 100); bubble('Yum!', c.x, c.y - 34); particle('♥', c.x, c.y - 26, '#ff6f91'); sound('meow'); addCoins(1); }
       updateUI(); break;
     case 'sleep':
-      if (Kitty.state === 'sleep') { Kitty.setState('idle'); bubble('Mrrp?', Kitty.x, Kitty.y - 34); }
-      else if (Kitty.state !== 'held') { G.toy = null; G.bowl = null; Kitty.setState('sleep'); bubble('Nap time', Kitty.x, Kitty.y - 34); }
+      if (c.state === 'sleep') { c.setState('idle'); bubble('Mrrp?', c.x, c.y - 34); }
+      else { G.toy = null; G.bowl = null; c.setState('sleep'); bubble('Nap time', c.x, c.y - 34); }
       break;
+    case 'hold': {
+      if (c.state === 'held') {
+        c.setState('idle'); c.y = GROUND + 4; Iustina.crouchFor(400); bubble('Down you go', Iustina.x, Iustina.y - 50); return;
+      }
+      if (!startTask()) return;
+      c.setState('wait');
+      Iustina.goTo(c.x + sideOf(c.x) * 20, () => {
+        Iustina.dir = c.x > Iustina.x ? 1 : -1;
+        Iustina.crouchFor(450, () => { c.setState('held'); particle('♥', c.x, c.y - 26, '#ff6f91'); sound('purr'); addCoins(1); endTask(); });
+      });
+      break; }
     case 'bed': {
-      const btn = document.getElementById('bed-btn');
+      const btn = $('bed-btn');
       if (G.inBed) { // get up
         G.inBed = false; Iustina.cb = null;
         if (Iustina.state === 'lie') { Iustina.state = 'idle'; Iustina.x = BED_X - 46; Iustina.dir = -1; }
         else if (Iustina.state === 'walk') Iustina.state = 'idle';
-        if (['toBed', 'hop', 'cuddle'].includes(Kitty.state)) {
-          Kitty.setState('idle'); Kitty.x = BED_X - 40; Kitty.y = GROUND + 4; Kitty.dir = -1; bubble('Mrrp!', Kitty.x, Kitty.y - 34);
+        if (['toBed', 'hop', 'cuddle'].includes(c.state)) {
+          c.setState('idle'); c.x = BED_X - 40; c.y = GROUND + 4; c.dir = -1; bubble('Mrrp!', c.x, c.y - 34);
         }
         endTask(); btn.textContent = 'Bed'; return;
       }
@@ -561,18 +666,7 @@ window.action = function (type) {
         if (!G.inBed) return;
         Iustina.dir = 1; Iustina.state = 'lie'; Iustina.x = BED_X - 6;
         bubble('Nap time~', BED_X - 6, GROUND - 46);
-        setTimeout(() => { if (G.inBed && Iustina.state === 'lie' && Kitty.state !== 'held') Kitty.setState('toBed'); }, 900);
-      });
-      break; }
-    case 'hold': {
-      if (Kitty.state === 'held') {
-        Kitty.setState('idle'); Kitty.y = GROUND + 4; Iustina.crouchFor(400); bubble('Down you go', Iustina.x, Iustina.y - 50); return;
-      }
-      if (!startTask()) return;
-      Kitty.setState('wait');
-      Iustina.goTo(Kitty.x + sideOf(Kitty.x) * 20, () => {
-        Iustina.dir = Kitty.x > Iustina.x ? 1 : -1;
-        Iustina.crouchFor(450, () => { Kitty.setState('held'); particle('\u2665', Kitty.x, Kitty.y - 26, '#ff6f91'); sound('purr'); addCoins(1); endTask(); });
+        setTimeout(() => { if (G.inBed && Iustina.state === 'lie' && c.state !== 'held') c.setState('toBed'); }, 900);
       });
       break; }
   }
@@ -584,7 +678,14 @@ canvas.addEventListener('pointerdown', e => {
   ac();
   const r = canvas.getBoundingClientRect();
   const x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height;
-  if (Math.abs(x - Kitty.x) < 18 && y > Kitty.y - 34 && y < Kitty.y + 6) { action('pet'); return; }
+  for (const id of ['kitty', 'ticky']) {
+    const k = CATS[id];
+    if (k.state === 'house' || k.state === 'toHouse') continue;
+    if (Math.abs(x - k.x) < 18 && y > k.y - 34 && y < k.y + 6) {
+      if (id === ACTIVE) action('pet'); else switchTo(id);
+      return;
+    }
+  }
   if (y > 115 && !Iustina.busy) Iustina.goTo(x);
 });
 
@@ -592,11 +693,12 @@ canvas.addEventListener('pointerdown', e => {
 function draw() {
   ctx.drawImage(bg, 0, 0);
   const light = (Math.sin(G.time * 2 * Math.PI / 240) + 1) / 2;
-  // twinkling stars
   stars.forEach(s => { const a = (0.35 + 0.65 * Math.abs(Math.sin(G.time * 1.5 + s.p))) * (1 - light * 0.9);
     ctx.fillStyle = 'rgba(255,255,230,' + a + ')'; ctx.fillRect(Math.floor(s.x), Math.floor(s.y), 1, 1); });
-  // sky lightens during "day"
   ctx.fillStyle = 'rgba(130,180,235,' + (0.5 * light) + ')'; ctx.fillRect(0, 0, W, 118);
+  // cathouse
+  const hs = Sprites.house;
+  ctx.drawImage(hs, Math.floor(HOUSE_X - hs.width / 2), GROUND + 4 - hs.height);
   // bed
   { const bx = BED_X;
     ctx.fillStyle = '#3a2a22'; ctx.fillRect(bx - 36, GROUND - 22, 4, 28);
@@ -606,22 +708,15 @@ function draw() {
     ctx.fillStyle = '#e8dfc9'; ctx.fillRect(bx - 30, GROUND - 12, 16, 1);
     if (!G.inBed) { ctx.fillStyle = '#8f6fb5'; ctx.fillRect(bx - 2, GROUND - 11, 34, 4); ctx.fillStyle = '#a98bd0'; ctx.fillRect(bx - 2, GROUND - 11, 34, 1); }
   }
-  // props
   if (G.bowl) { const s = Sprites.bowl; ctx.drawImage(s, Math.floor(G.bowl.x - s.width / 2), GROUND + 4 - s.height); }
   if (G.toy) { const s = Sprites.toy; const bob = Math.abs(Math.sin(G.time * 6)) * 3; ctx.drawImage(s, Math.floor(G.toy.x - s.width / 2), Math.floor(GROUND + 4 - s.height - bob)); }
-  // characters
   Iustina.draw();
-  if (Iustina.state === 'lie') { // blanket over her legs
-    ctx.fillStyle = '#8f6fb5'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 7);
-    ctx.fillStyle = '#a98bd0'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 1);
-  }
-  Kitty.draw();
-  // held cat draws on top of girl
-  // particles
+  // inactive cats first, so the active one is on top
+  const order = ACTIVE === 'kitty' ? ['ticky', 'kitty'] : ['kitty', 'ticky'];
+  order.forEach(id => CATS[id].draw());
   ctx.font = 'bold 9px "Courier New",monospace'; ctx.textAlign = 'center';
   G.particles.forEach(p => { ctx.globalAlpha = clamp(p.life / 30, 0, 1); ctx.fillStyle = p.color; ctx.fillText(p.text, Math.floor(p.x), Math.floor(p.y)); });
   ctx.globalAlpha = 1;
-  // speech bubbles
   ctx.font = 'bold 8px "Courier New",monospace';
   G.bubbles.forEach(b => {
     const w = Math.ceil(ctx.measureText(b.text).width) + 8, x = Math.floor(clamp(b.x - w / 2, 2, W - w - 2)), y = Math.floor(b.y);
@@ -632,14 +727,14 @@ function draw() {
     ctx.fillStyle = '#4a3028'; ctx.textAlign = 'center'; ctx.fillText(b.text, x + w / 2, y + 8);
   });
   ctx.globalAlpha = 1;
-  // night/day tint
   ctx.fillStyle = 'rgba(10,10,40,' + (0.28 * (1 - light)) + ')'; ctx.fillRect(0, 0, W, H);
 }
 
 // ===== LOOP =====
 function update() {
-  G.time += 1 / 60;
-  Iustina.update(); Kitty.update();
+  G.time += 1 / 60; G.frame++;
+  if (G.frame % 3600 === 0 && G.treats > 0) G.treats--;
+  Iustina.update(); CATS.kitty.update(); CATS.ticky.update();
   G.particles.forEach(p => { p.y -= 0.3; p.life--; }); G.particles = G.particles.filter(p => p.life > 0);
   G.bubbles.forEach(b => { b.y -= 0.1; b.life--; }); G.bubbles = G.bubbles.filter(b => b.life > 0);
 }
@@ -649,8 +744,15 @@ function loop(now) {
   while (acc >= 16.667) { update(); acc -= 16.667; }
   draw(); requestAnimationFrame(loop);
 }
+
+$('tab-kitty').textContent = CATS.kitty.name;
+$('tab-ticky').textContent = CATS.ticky.name;
+$('tab-kitty').addEventListener('click', () => switchTo('kitty'));
+$('tab-ticky').addEventListener('click', () => switchTo('ticky'));
 load();
-bubble('Hi Kitty!', Iustina.x, Iustina.y - 50);
+initCats();
+updateUI();
+bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
 requestAnimationFrame(loop);
 </script>
 </body>
