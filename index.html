@@ -268,7 +268,7 @@ const SPR = {
     "..JJJ........JJ.",
     "..RRR.......RRR."],
   girl_crouch: [
-    "................","................","................","................",
+    "................","................","................",
     ...GIRL_HEAD,
     "...HWWWWWWWWH...",
     "..SHWWWWWWWWHS..",
@@ -390,6 +390,17 @@ function compileSprites(pal, prefix, filter, source = SPR) {
     Sprites[prefix + name] = c; Sprites[prefix + name + '_flip'] = f;
   }
 }
+// The gown girl is taller than the casual one, so lengthen the casual girl (more torso + legs) to match her height.
+const BODY_ROWS = SPR.girl_idle.slice(7, 13); // frozen copy used by the gown sprites
+(function growCasual() {
+  const torso = '...WWWWWWWWWW...', hip = '....JJJJJJJJ....', leg = '....JJJJ.JJJ....';
+  const idle = SPR.girl_idle, walk = SPR.girl_walk;
+  const ti = idle.indexOf(torso); idle.splice(ti + 1, 0, torso, torso);
+  const hi = idle.indexOf(hip); idle.splice(hi + 1, 0, hip, hip);
+  const li = idle.lastIndexOf(leg); idle.splice(li + 1, 0, leg, leg);
+  const tw = walk.indexOf(torso); walk.splice(tw + 1, 0, torso, torso);
+  const hw = walk.indexOf(hip); walk.splice(hw + 1, 0, hip, hip, hip, hip, hip);
+})();
 compileSprites(PAL, '', null);
 compileSprites(PAL2, 'b_', n => /^cat/.test(n));
 
@@ -422,10 +433,10 @@ const GOWN_DRESS = [
 // Chest and torso become dress; the arms stay skin. Shoes/feet become the blood-soaked hem.
 const gownBody = rows => rows.map((r, i) => (i === 5 ? r.replace(/S/g, 'N') : r).replace(/[WJ]/g, 'N').replace(/R/g, 'X'));
 const SPR_GOWN = {
-  girl_idle: [...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 13)), ...GOWN_DRESS],
-  girl_walk: [...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 13)), ...GOWN_DRESS.slice(0, -1), ".XXXXXXXXXXXXXXXXX"],
+  girl_idle: [...GOWN_HEAD, ...gownBody(BODY_ROWS), ...GOWN_DRESS],
+  girl_walk: [...GOWN_HEAD, ...gownBody(BODY_ROWS), ...GOWN_DRESS.slice(0, -1), ".XXXXXXXXXXXXXXXXX"],
   girl_crouch: ["................", "................", "................", "................",
-    ...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 11)), "..NNXNNNNNNNNNNNN..", "NNNXNNNNXNNNNNNNN", "XXXXXXXXXXXXXXXXX"],
+    ...GOWN_HEAD, ...gownBody(BODY_ROWS.slice(0, 4)), "..NNXNNNNNNNNNNNN..", "NNNXNNNNXNNNNNNNN", "XXXXXXXXXXXXXXXXX"],
   girl_lie: gownBody(SPR.girl_lie)
 };
 compileSprites(PAL_GOWN, 'o_', null, SPR_GOWN);
