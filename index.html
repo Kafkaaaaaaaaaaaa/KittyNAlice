@@ -307,24 +307,27 @@ const GOWN_HEAD = [
   "...HHXSSSSXHH..."
 ];
 const GOWN_DRESS = [
-  "...NNNNNNNNNNN...",
-  "..NNNXNNNNNNNNN..",
-  "..NNNNNNNNXNNNN..",
-  ".NNNNNNXNNNNNNNN.",
-  ".NNNNNNNNNNXNNNN.",
-  "NNNNNNNNNNNNNNNNN",
-  "NNNNXNNNNNNNNXNNN",
-  "NNNNNNNNXNNNNNNNN",
-  "NNXNNNNNNNNNNNXNN",
-  "kkkkkkkkkkkkkkkkk"
+  "...NNXNNNXNNNNN...",
+  "..NXNNNNNNNXNNNN..",
+  "..NNNXNNNNNNXNNN..",
+  ".NNXNNNNXNNNNXNN..",
+  ".NNNNXNNNNNNXNNN..",
+  "NNXNNNNXNNNNNNNXN.",
+  "NNNNXNNNNXNNNXNNN.",
+  "NXNNNNXNNNNXNNNNN.",
+  "NNNXNXNNNNNNNXNNX.",
+  "XNNXNNNNXNNXNNNNN.",
+  "NNXNNNXNNXNNNNXNN.",
+  "XXNXXNXXNXXNXXNXX."
 ];
 // Body rows from the normal sprite, recoloured: top and skirt become the gown, shoes become dark.
-const gownBody = rows => rows.map(r => r.replace(/[WJ]/g, 'N').replace(/R/g, 'k'));
+// Chest and torso become dress; the arms stay skin. Shoes/feet become the blood-soaked hem.
+const gownBody = rows => rows.map((r, i) => (i === 5 ? r.replace(/S/g, 'N') : r).replace(/[WJ]/g, 'N').replace(/R/g, 'X'));
 const SPR_GOWN = {
   girl_idle: [...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 13)), ...GOWN_DRESS],
-  girl_walk: [...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 13)), ...GOWN_DRESS.slice(0, -1), "kkkkkkkkkkkkkkkkk"],
+  girl_walk: [...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 13)), ...GOWN_DRESS.slice(0, -1), ".XXXXXXXXXXXXXXXXX"],
   girl_crouch: ["................", "................", "................", "................",
-    ...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 11)), "..NNNNNNNNNNNNNN..", "NNNNNNNNNNNNNNNNN", "kkkkkkkkkkkkkkkkk"],
+    ...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 11)), "..NNXNNNNNNNNNNNN..", "NNNXNNNNXNNNNNNNN", "XXXXXXXXXXXXXXXXX"],
   girl_lie: gownBody(SPR.girl_lie)
 };
 compileSprites(PAL_GOWN, 'o_', null, SPR_GOWN);
