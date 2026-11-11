@@ -155,19 +155,30 @@ function ac() {
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
-function sound(type) {
+function sound(type, p = 1) {
   if (G.muted) return;
   const a = ac(); if (!a) return;
   const o = a.createOscillator(), g = a.createGain();
   o.connect(g); g.connect(a.destination);
   const t = a.currentTime;
-  if (type === 'meow') {
-    o.type = 'triangle';
-    o.frequency.setValueAtTime(450, t);
-    o.frequency.exponentialRampToValueAtTime(850, t + 0.18);
-    o.frequency.exponentialRampToValueAtTime(380, t + 0.45);
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.18, t + 0.08); g.gain.linearRampToValueAtTime(0, t + 0.45);
-    o.start(t); o.stop(t + 0.46);
+  if (type === 'meow' || type === 'mew') {
+    // two detuned voices through a vowel-like filter, with a little vibrato = "mee-ow"
+    const long = type === 'meow', d = long ? 0.5 : 0.22;
+    const f = a.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 3;
+    f.frequency.setValueAtTime(900, t); f.frequency.linearRampToValueAtTime(1800, t + d * 0.4); f.frequency.linearRampToValueAtTime(700, t + d);
+    const o2 = a.createOscillator(), lfo = a.createOscillator(), lg = a.createGain();
+    o.disconnect(); o.connect(f); o2.connect(f); f.connect(g);
+    o.type = 'sawtooth'; o2.type = 'triangle';
+    const base = 430 * p, peak = (long ? 900 : 760) * p, end = (long ? 360 : 520) * p;
+    for (const x of [o, o2]) {
+      x.frequency.setValueAtTime(base, t);
+      x.frequency.exponentialRampToValueAtTime(peak, t + d * 0.35);
+      x.frequency.exponentialRampToValueAtTime(end, t + d);
+    }
+    o2.detune.value = 12;
+    lfo.frequency.value = 22; lg.gain.value = 14 * p; lfo.connect(lg); lg.connect(o.frequency);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.32, t + d * 0.2); g.gain.linearRampToValueAtTime(0.2, t + d * 0.7); g.gain.linearRampToValueAtTime(0, t + d);
+    o.start(t); o2.start(t); lfo.start(t); o.stop(t + d + 0.02); o2.stop(t + d + 0.02); lfo.stop(t + d + 0.02);
   } else if (type === 'purr') {
     o.type = 'sawtooth'; o.frequency.setValueAtTime(40, t);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.08, t + 0.1); g.gain.linearRampToValueAtTime(0, t + 1.0);
@@ -486,6 +497,7 @@ function makeCat(name, pre, x0, stats0) {
     name, pre, x: x0, y: GROUND + 4, dir: -1, state: 'idle', timer: 0, stateT: 0, freeze: 0, hopFromX: 0,
     stats: Object.assign({ hunger: 60, happy: 60, energy: 90, clean: 90 }, stats0),
     setState(s) { this.state = s; this.stateT = 0; },
+    meow(short) { sound(short ? 'mew' : 'meow', this.pre ? 0.82 : 1.1); particle(short ? '\u266A' : 'Meow!', this.x + 6, this.y - 26, '#fff2c2'); },
     update() {
       this.timer++; this.stateT++;
       const st = this.stats;
@@ -546,7 +558,7 @@ function makeCat(name, pre, x0, stats0) {
         if (st.energy < 20) { this.setState('sleep'); return; }
         if (st.hunger < 30 && Math.random() < 0.006) { bubble('Feed me!', this.x, this.y - 34); sound('meow'); this.setState('beg'); return; }
         if (st.happy < 25 && Math.random() < 0.004) bubble('mrrp...', this.x, this.y - 34);
-        if (Math.random() < 0.012) { this.dir = Math.random() < 0.5 ? 1 : -1; this.setState('walk'); }
+        if (Math.random() < 0.012) { this.dir = Math.random() < 0.5 ? 1 : -1; this.zoom = Math.random() < 0.25; this.setState('walk'); }
       }
       else if (this.state === 'beg') { if (this.stateT > 120) this.setState('idle'); }
       else if (this.state === 'walk') {
@@ -554,10 +566,11 @@ function makeCat(name, pre, x0, stats0) {
         if (target) {
           const dx = target.x - this.x;
           if (Math.abs(dx) > 6) { this.dir = dx > 0 ? 1 : -1; this.x += this.dir * (G.toy ? 1.5 : 1.0); }
-          else this.setState(G.toy ? 'play' : 'eat');
+          else { this.setState(G.toy ? 'play' : 'eat'); this.meow(false); this.zoom = false; }
         } else {
-          this.x += this.dir * 0.5;
-          if (this.x < 20 || this.x > W - 20 || this.stateT > 90 + Math.random() * 100) this.setState('idle');
+          this.x += this.dir * (this.zoom ? 2.2 : 0.5);
+          if (this.zoom && (this.x < 20 || this.x > W - 20)) { this.dir *= -1; this.x = clamp(this.x, 21, W - 21); }
+          if (this.zoom ? this.stateT > 80 : (this.x < 20 || this.x > W - 20 || this.stateT > 90 + Math.random() * 100)) { this.zoom = false; this.setState('idle'); }
         }
       }
       else if (this.state === 'eat') {
@@ -565,7 +578,7 @@ function makeCat(name, pre, x0, stats0) {
         if (this.stateT % 30 === 0) {
           st.hunger = clamp(st.hunger + 8, 0, 100); sound('eat'); updateUI();
           if (st.hunger >= 100 || this.stateT > 420) {
-            G.bowl = null; this.setState('idle'); bubble('Purr...', this.x, this.y - 34); sound('purr'); addCoins(1);
+            G.bowl = null; this.setState('idle'); bubble('Purr...', this.x, this.y - 34); this.meow(true); sound('purr'); addCoins(1);
           }
         }
       }
@@ -575,6 +588,7 @@ function makeCat(name, pre, x0, stats0) {
         if (this.stateT % 15 === 0) {
           st.happy = clamp(st.happy + 2, 0, 100); st.energy = clamp(st.energy - 1.2, 0, 100); updateUI();
           if (this.stateT % 60 === 0) particle('♥', this.x, this.y - 30, '#d95763');
+          if (this.stateT % 150 === 0 && this.stateT > 0) this.meow(true);
         }
         if (this.stateT > 600 || st.energy < 10) { G.toy = null; this.setState('idle'); bubble('Fun!', this.x, this.y - 34); addCoins(2); }
       }
@@ -590,7 +604,12 @@ function makeCat(name, pre, x0, stats0) {
       if (this.state === 'house') return;
       let n = 'cat_sit', bob = 0;
       const flip = this.dir === -1;
-      if (['walk', 'toBed', 'outHouse', 'toHouse'].includes(this.state)) n = (Math.floor(this.timer / 9) % 2) ? 'cat_walk1' : 'cat_walk2';
+      if (['walk', 'toBed', 'outHouse', 'toHouse'].includes(this.state)) {
+        const run = G.toy || G.bowl || this.zoom || this.state === 'toBed';
+        n = (Math.floor(this.timer / (run ? 5 : 8)) % 2) ? 'cat_walk1' : 'cat_walk2';
+        bob = -Math.abs(Math.sin(this.timer / (run ? 2.6 : 4))) * (run ? 3 : 1.6);
+        if (run && this.timer % 9 === 0) particle('\u00B7', this.x - this.dir * 10, this.y + 2, '#c9b99a');
+      }
       else if (this.state === 'sleep') { n = 'cat_sleep'; bob = (Math.floor(this.timer / 35) % 2) ? 1 : 0; }
       else if (this.state === 'eat') bob = (Math.floor(this.timer / 10) % 2) ? 2 : 0;
       else if (this.state === 'play') { n = 'cat_beg'; bob = -Math.abs(Math.sin(this.timer / 6)) * 5; }
