@@ -290,23 +290,25 @@ const SPR = {
     "..CCCCCCCCCC..",
     "..BBBB....BBBB"],
   cat_walk1: [
-    "BB............B...",
-    "BBB...........BB..",
-    ".BCEBCCCCCCCBB....",
-    ".BCCBCCCCCCCCCBB..",
-    "BCCCCCCCCCCCCCCCB.",
-    "BCCCCCCCCCCCCCCCBB",
-    ".BCCCCCCCCCCCCCB..",
+    "B............B..B.",
+    "BB..........BBBBBB",
+    ".B.........BBBBEBB",
+    ".BB.CCCCCCCBBBBBBD",
+    "..BCCCCCCCCCCBBBB.",
+    "..CCCCCCCCCCCCCC..",
+    "..CCCCCCCCCCCCCC..",
+    "..CCCCCCCCCCCCC...",
     "..BB.BB....BB.BB..",
     "..BB.BB....BB.BB.."],
   cat_walk2: [
-    "BB............B...",
-    "BBB...........BB..",
-    ".BCEBCCCCCCCBB....",
-    ".BCCBCCCCCCCCCBB..",
-    "BCCCCCCCCCCCCCCCB.",
-    "BCCCCCCCCCCCCCCCBB",
-    ".BCCCCCCCCCCCCCB..",
+    ".B...........B..B.",
+    "BB..........BBBBBB",
+    "BB.........BBBBEBB",
+    ".B..CCCCCCCBBBBBBD",
+    "..BCCCCCCCCCCBBBB.",
+    "..CCCCCCCCCCCCCC..",
+    "..CCCCCCCCCCCCCC..",
+    "..CCCCCCCCCCCCC...",
     "...B.B.....B.B....",
     "..B..B.....B..B..."],
   cat_sleep: [
@@ -470,7 +472,9 @@ const Iustina = {
 // Accessories (collar bow, bell) in padded sprite-grid cells, used by Kitty and Ticky.
 const ACC = {
   cat_sit: { bow: [[5, 8], [6, 8]], bell: [[8, 9]] },
-  cat_beg: { bow: [[5, 8], [6, 8]], bell: [[8, 9]] }
+  cat_beg: { bow: [[5, 8], [6, 8]], bell: [[8, 9]] },
+  cat_walk1: { bow: [[11, 4], [11, 5]], bell: [[11, 6]] },
+  cat_walk2: { bow: [[11, 4], [11, 5]], bell: [[11, 6]] }
 };
 function drawCat(pre, n, flip, x, y) {
   const s = Sprites[pre + n + (flip ? '_flip' : '')];
