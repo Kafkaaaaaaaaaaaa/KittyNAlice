@@ -121,6 +121,7 @@
     <div class="dpanel" id="p-rest">
       <button class="act" onclick="action('sleep')"><span class="ic">&#x1F634;</span>Sleep</button>
       <button class="act" id="bed-btn" onclick="action('bed')"><span class="ic">&#x1F6CF;&#xFE0F;</span><span id="bed-label">Bed</span></button>
+      <button class="act" onclick="action('smoke')"><span class="ic">&#x1F6AC;</span>Smoke</button>
       <button class="act" id="outfit-btn"><span class="ic">&#x1F457;</span>Outfit</button>
     </div>
     <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The one you leave goes into the cathouse.</div>
@@ -161,6 +162,19 @@ function sound(type, p = 1) {
   const o = a.createOscillator(), g = a.createGain();
   o.connect(g); g.connect(a.destination);
   const t = a.currentTime;
+  if (type === 'puff') {
+    const len = Math.floor(a.sampleRate * 0.7), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / len);
+    const n = a.createBufferSource(), lp = a.createBiquadFilter(), ng = a.createGain();
+    n.buffer = buf; lp.type = 'lowpass'; lp.frequency.value = 1400; n.connect(lp); lp.connect(ng); ng.connect(a.destination);
+    ng.gain.setValueAtTime(0.12, t); n.start(t);
+    return;
+  }
+  if (type === 'flick') {
+    o.type = 'square'; o.frequency.setValueAtTime(2400, t); o.frequency.setValueAtTime(1800, t + 0.03);
+    g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.09); o.start(t); o.stop(t + 0.1);
+    return;
+  }
   if (type === 'meow' || type === 'mew') {
     // two detuned voices through a vowel-like filter, with a little vibrato = "mee-ow"
     const long = type === 'meow', d = long ? 0.5 : 0.22;
@@ -442,8 +456,37 @@ const Iustina = {
   x: 130, y: GROUND, dir: 1, state: 'idle', timer: 0, targetX: null, cb: null, busy: false, pre: '',
   goTo(x, cb) { this.targetX = clamp(x, 18, W - 18); this.cb = cb || null; this.state = 'walk'; },
   crouchFor(ms, then) { this.state = 'crouch'; setTimeout(() => { this.state = 'idle'; if (then) then(); }, ms); },
+  puffs: [], butt: null, sT: 0,
+  smoke() {
+    this.state = 'smoke'; this.sT = 0; this.busy = true;
+  },
+  smokeAnchors() {
+    // mouth and "waist hand" positions for the overlay
+    const s = Sprites[this.pre + 'girl_idle'], top = this.y - s.height;
+    return { mx: this.x + this.dir * 3, my: top + 19, hx: this.x + this.dir * 19, hy: top + 36 };
+  },
   update() {
     this.timer++;
+    this.puffs.forEach(q => { q.y -= q.vy; q.x += q.vx; q.r += 0.04; q.life--; });
+    this.puffs = this.puffs.filter(q => q.life > 0);
+    if (this.butt) { const b = this.butt; if (b.y < GROUND + 2) { b.y += b.vy; b.vy += 0.25; b.x += b.vx; } b.life--; if (b.life <= 0) this.butt = null; }
+    if (this.state === 'smoke') {
+      this.sT++;
+      const t = this.sT, a = this.smokeAnchors();
+      if (t === 60) sound('flick');
+      if (t === 100) { sound('flick'); }
+      if (t >= 185) {
+        const k = (t - 185);
+        if (k % 150 === 20) { sound('puff'); }
+        if (k % 150 >= 40 && k % 150 < 110 && t % 6 === 0) this.puffs.push({ x: a.mx + this.dir * 4, y: a.my - 2, vx: this.dir * 0.25 + (Math.random() - 0.5) * 0.2, vy: 0.35 + Math.random() * 0.2, r: 2, life: 90 });
+        if (k % 150 === 60) bubble(['mmm...', '*exhale*', 'ahh'][Math.floor(k / 150) % 3], this.x, this.y - 64);
+      }
+      if (t >= 185 + 450) {
+        this.butt = { x: a.mx + this.dir * 8, y: a.my + 4, vx: this.dir * 0.8, vy: -1.2, life: 900 };
+        this.state = 'idle'; this.busy = false; sound('click'); bubble('Ugh, the habit...', this.x, this.y - 64);
+      }
+      return;
+    }
     if (this.state === 'walk') {
       const dx = this.targetX - this.x;
       if (Math.abs(dx) > 1.2) { this.dir = dx > 0 ? 1 : -1; this.x += this.dir * 1.1; }
@@ -465,6 +508,60 @@ const Iustina = {
     const bob = (this.state === 'idle' && Math.floor(this.timer / 40) % 2) ? 1 : 0;
     ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(Math.floor(this.x - 12), this.y, 24, 3);
     ctx.drawImage(s, Math.floor(this.x - s.width / 2), this.y - s.height + bob);
+    if (this.state === 'smoke') this.drawSmoke();
+    this.drawPuffs();
+  },
+  drawPuffs() {
+    this.puffs.forEach(q => { ctx.globalAlpha = clamp(q.life / 50, 0, 0.6); ctx.fillStyle = '#cfd3dc'; const r = Math.round(q.r); ctx.fillRect(Math.floor(q.x - r), Math.floor(q.y - r), r * 2, r * 2); });
+    ctx.globalAlpha = 1;
+    if (this.butt) {
+      const b = this.butt, d = this.dir, rest = b.y >= GROUND + 2;
+      ctx.globalAlpha = clamp(b.life / 120, 0, 1);
+      ctx.fillStyle = '#e8e6e0'; ctx.fillRect(Math.floor(b.x), Math.floor(b.y), 3, 1);
+      ctx.fillStyle = '#2f6fe0'; ctx.fillRect(Math.floor(b.x) + (d > 0 ? 3 : -3), Math.floor(b.y), 3, 1);
+      if (rest && b.life > 600) { ctx.fillStyle = (this.timer % 20 < 10) ? '#ff7a2f' : '#ffb347'; ctx.fillRect(Math.floor(b.x) + (d > 0 ? -1 : 3), Math.floor(b.y), 1, 1); }
+      ctx.globalAlpha = 1;
+    }
+  },
+  drawSmoke() {
+    const t = this.sT, d = this.dir, a = this.smokeAnchors(), ease = u => u * u * (3 - 2 * u), lerp = (p, q, u) => p + (q - p) * u;
+    const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.floor(x), Math.floor(y), w, h); };
+    const box = (x, y, open) => { // blue cigarette pack
+      const left = d > 0 ? x : x - 8;
+      px(left, y, 8, 11, '#1f56d1'); px(left, y, 8, 1, '#5b8cff'); px(left + 1, y + 4, 6, 3, '#e8f0ff'); px(left + 3, y + 5, 2, 1, '#1f56d1'); px(left, y + 10, 8, 1, '#143a96');
+      if (open) { px(left + 1, y - 2, 6, 2, '#e8f0ff'); px(left + 2, y - 4, 1, 2, '#e8e6e0'); px(left + 4, y - 3, 1, 2, '#e8e6e0'); px(left + 5, y - 4, 1, 2, '#e8e6e0'); }
+    };
+    // cigarette: blue filter nearest the mouth, white paper, ember at the tip
+    const cig = (x, y, burn, glow) => {
+      const len = burn;           // paper length in px
+      const f = d > 0 ? x : x - 3, p0 = d > 0 ? x + 3 : x - 3 - len;
+      px(f, y, 3, 2, '#2f6fe0'); px(f, y, 3, 1, '#5b8cff');
+      px(p0, y, len, 2, '#f4f1ea');
+      if (glow !== null) { const ex = d > 0 ? x + 3 + len : x - 3 - len - 1; px(ex, y, 1, 2, glow ? '#ff7a2f' : '#b8742f'); }
+    };
+    if (t < 55) { // pack comes out of the pocket
+      const u = ease(clamp(t / 25, 0, 1));
+      box(lerp(a.hx, a.hx, u), lerp(a.hy + 14, a.hy, u), t > 30);
+    } else if (t < 100) { // pull one out, bring it to the lips
+      const u = ease((t - 55) / 45);
+      box(a.hx, lerp(a.hy, a.hy + 14, clamp((t - 85) / 15, 0, 1)), t < 85);
+      cig(lerp(a.hx, a.mx + d * 4, u), lerp(a.hy - 4, a.my, u), 8, null);
+    } else if (t < 185) { // light it
+      cig(a.mx + d * 4, a.my, 8, t > 150 ? true : null);
+      const fx = a.mx + d * 4 + d * 11;
+      if (t >= 100 && t < 160) { // lighter with a flickering flame
+        const fl = Math.floor(t / 3) % 3, lx = d > 0 ? fx - 1 : fx - 2;
+        px(lx, a.my + 1, 4, 6, '#8d95a3'); px(lx, a.my + 1, 4, 1, '#c5ccd8');
+        px(lx + 1, a.my - 2 - fl, 2, 3 + fl, '#ffb62f'); px(lx + 1, a.my - fl, 2, 2, '#fff2a8'); px(lx + 1, a.my - 3 - fl, 1, 1, '#ff7a2f');
+        if (t > 120) { ctx.globalAlpha = 0.2; px(lx - 3, a.my - 5, 10, 12, '#ffb62f'); ctx.globalAlpha = 1; }
+      }
+    } else { // smoking
+      const k = (t - 185) % 150, inhale = k > 10 && k < 45;
+      const burn = Math.max(2, Math.round(8 - 6 * ((t - 185) / 450)));
+      const drag = inhale ? 1 : 0; // arm lifts slightly closer to the mouth on a drag
+      cig(a.mx + d * (4 - drag), a.my, burn, inhale || (this.timer % 40 < 28));
+      px(a.mx + d * (4 - drag) + (d > 0 ? 3 : -5), a.my + 2, 2, 2, '#f1c27d'); // fingers
+    }
   }
 };
 
@@ -778,6 +875,10 @@ window.action = function (type) {
       if (G.treats > 3) { st.happy = clamp(st.happy - 10, 0, 100); st.energy = clamp(st.energy - 5, 0, 100); bubble('Too many treats... blegh', c.x, c.y - 34); }
       else { st.hunger = clamp(st.hunger + 5, 0, 100); st.happy = clamp(st.happy + 8, 0, 100); bubble('Yum!', c.x, c.y - 34); particle('♥', c.x, c.y - 26, '#ff6f91'); sound('meow'); addCoins(1); }
       updateUI(); break;
+    case 'smoke':
+      if (G.inBed) { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
+      if (Iustina.state !== 'idle' || !startTask()) return;
+      Iustina.smoke(); break;
     case 'sleep':
       if (c.state === 'sleep') { c.setState('idle'); bubble('Mrrp?', c.x, c.y - 34); }
       else { G.toy = null; G.bowl = null; c.setState('sleep'); bubble('Nap time', c.x, c.y - 34); }
