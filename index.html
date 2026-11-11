@@ -394,12 +394,16 @@ function compileSprites(pal, prefix, filter, source = SPR) {
 const BODY_ROWS = SPR.girl_idle.slice(7, 13); // frozen copy used by the gown sprites
 (function growCasual() {
   const torso = '...WWWWWWWWWW...', hip = '....JJJJJJJJ....', leg = '....JJJJ.JJJ....';
-  const idle = SPR.girl_idle, walk = SPR.girl_walk;
+  const idle = SPR.girl_idle;
   const ti = idle.indexOf(torso); idle.splice(ti + 1, 0, torso, torso);
   const hi = idle.indexOf(hip); idle.splice(hi + 1, 0, hip, hip);
   const li = idle.lastIndexOf(leg); idle.splice(li + 1, 0, leg, leg);
-  const tw = walk.indexOf(torso); walk.splice(tw + 1, 0, torso, torso);
-  const hw = walk.indexOf(hip); walk.splice(hw + 1, 0, hip, hip, hip, hip, hip);
+  // clean front-view step: same body, one foot lifted at a time (left, then right)
+  const sym = r => r === leg ? '....JJJ..JJJ....' : r === '....RRRR.RRR....' ? '....RRR..RRR....' : r;
+  for (let i = 0; i < idle.length; i++) idle[i] = sym(idle[i]);
+  const body = idle.slice(0, -2);
+  SPR.girl_walk = body.concat(['....RRR..JJJ....', '.........RRR....']);
+  SPR.girl_walk2 = body.concat(['....JJJ..RRR....', '....RRR.........']);
 })();
 compileSprites(PAL, '', null);
 compileSprites(PAL2, 'b_', n => /^cat/.test(n));
@@ -541,11 +545,13 @@ const Iustina = {
       ctx.fillStyle = '#a98bd0'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 1);
       return;
     }
-    let n = 'girl_idle';
-    if (this.state === 'walk') n = (Math.floor(this.timer / 10) % 2) ? 'girl_walk' : 'girl_idle';
+    let n = 'girl_idle', bob = (this.state === 'idle' && Math.floor(this.timer / 40) % 2) ? 1 : 0;
+    if (this.state === 'walk') {
+      const ph = Math.floor(this.timer / 9) % 4;
+      n = Sprites[this.pre + 'girl_walk2'] ? ['girl_walk', 'girl_idle', 'girl_walk2', 'girl_idle'][ph] : (ph % 2 ? 'girl_walk' : 'girl_idle');
+    }
     else if (this.state === 'crouch') n = 'girl_crouch';
     const s = Sprites[this.pre + n + (this.dir === -1 ? '_flip' : '')];
-    const bob = (this.state === 'idle' && Math.floor(this.timer / 40) % 2) ? 1 : 0;
     ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(Math.floor(this.x - 12), this.y, 24, 3);
     const sx = Math.floor(this.x - s.width / 2), sy = this.y - s.height + bob;
     if (this.lean > 0.03) {
