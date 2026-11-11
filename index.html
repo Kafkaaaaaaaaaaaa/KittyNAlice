@@ -901,7 +901,8 @@ function setOutfit(id) {
   OUTFIT = id;
   Iustina.pre = OUTFITS.find(o => o.id === id).pre;
   try { localStorage.setItem('alice_outfit', id); } catch (e) {}
-  bubble(id === 'gown' ? 'Ooh, dramatic!' : 'Back to normal', Iustina.x, Iustina.y - 50);
+  bubble(id === 'gown' ? 'Is it Halloween?' : 'Back to normal', Iustina.x, Iustina.y - 50);
+  G.bubbles[G.bubbles.length - 1].life = 260; // stays up until the outfit sheet is closed
   buildOutfitCards();
 }
 function buildOutfitCards() {
