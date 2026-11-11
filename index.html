@@ -448,16 +448,35 @@ const OUTFITS = [ { id: 'casual', label: 'Casual', pre: '' }, { id: 'gown', labe
 let OUTFIT = 'casual';
 
 // ===== BACKGROUND (pre-rendered) =====
-const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+const bgSky = document.createElement('canvas'); bgSky.width = W; bgSky.height = H;
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H; // landscape layer (transparent sky)
 const stars = [];
+const moonImg = document.createElement('canvas'); moonImg.width = 21; moonImg.height = 21;
+const sunImg = document.createElement('canvas'); sunImg.width = 27; sunImg.height = 27;
+// ===== REAL TIME: the scene follows the viewer's local clock (add ?hour=14 to the address to preview) =====
+function localHour() {
+  const q = parseFloat(new URLSearchParams(location.search).get('hour'));
+  if (!isNaN(q)) return ((q % 24) + 24) % 24;
+  const d = new Date(); return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+}
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+function daylight(h) { return smooth(5, 7.5, h) * (1 - smooth(17, 19.5, h)); } // 0 = night, 1 = full day
 (function buildBG() {
-  const b = bg.getContext('2d');
+  let b = bgSky.getContext('2d');
   const sky = ['#0d0d1f', '#12122a', '#171736', '#1d1d42', '#242450', '#2c2c5c'];
   sky.forEach((c, i) => { b.fillStyle = c; b.fillRect(0, i * 18, W, 19); });
   for (let i = 0; i < 40; i++) stars.push({ x: Math.random() * W, y: Math.random() * 90, p: Math.random() * 6 });
+  // moon and sun are pre-drawn once and placed by the real clock each frame
+  b = moonImg.getContext('2d');
   b.fillStyle = '#f3ecd0';
-  for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) if (dx * dx + dy * dy <= 81) b.fillRect(262 + dx, 30 + dy, 1, 1);
-  b.fillStyle = '#d8cfae'; b.fillRect(257, 27, 3, 3); b.fillRect(266, 34, 2, 2);
+  for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) if (dx * dx + dy * dy <= 81) b.fillRect(10 + dx, 10 + dy, 1, 1);
+  b.fillStyle = '#d8cfae'; b.fillRect(5, 7, 3, 3); b.fillRect(14, 14, 2, 2);
+  b = sunImg.getContext('2d');
+  b.fillStyle = '#ffd96b';
+  for (let dy = -7; dy <= 7; dy++) for (let dx = -7; dx <= 7; dx++) if (dx * dx + dy * dy <= 49) b.fillRect(13 + dx, 13 + dy, 1, 1);
+  b.fillStyle = '#fff2a8'; for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) if (dx * dx + dy * dy <= 16) b.fillRect(12 + dx, 12 + dy, 1, 1);
+  b.fillStyle = '#ffe48a'; [[13, 1], [13, 24], [1, 13], [24, 13], [4, 4], [22, 4], [4, 22], [22, 22]].forEach(([x, y]) => b.fillRect(x, y, 2, 2));
+  b = bg.getContext('2d');
   b.fillStyle = '#16203a';
   for (let x = 0; x < W; x++) b.fillRect(x, 100 + Math.sin(x / 38) * 8 + Math.sin(x / 13) * 2, 1, 40);
   const tree = (tx, th) => { b.fillStyle = '#0b1424'; b.fillRect(tx, 112 - th, 5, th + 8);
@@ -1024,11 +1043,21 @@ canvas.addEventListener('pointerdown', e => {
 
 // ===== DRAW =====
 function draw() {
-  ctx.drawImage(bg, 0, 0);
-  const light = (Math.sin(G.time * 2 * Math.PI / 240) + 1) / 2;
+  const hour = localHour(), light = daylight(hour);
+  ctx.drawImage(bgSky, 0, 0);
   stars.forEach(s => { const a = (0.35 + 0.65 * Math.abs(Math.sin(G.time * 1.5 + s.p))) * (1 - light * 0.9);
     ctx.fillStyle = 'rgba(255,255,230,' + a + ')'; ctx.fillRect(Math.floor(s.x), Math.floor(s.y), 1, 1); });
-  ctx.fillStyle = 'rgba(130,180,235,' + (0.5 * light) + ')'; ctx.fillRect(0, 0, W, 118);
+  ctx.fillStyle = 'rgba(130,180,235,' + (0.6 * light) + ')'; ctx.fillRect(0, 0, W, 118);
+  // sun rises in the east and sets in the west; the moon is out at night
+  const st = clamp((hour - 5.5) / 13, 0, 1);
+  if (light > 0.02) { ctx.globalAlpha = clamp(light * 2, 0, 1); ctx.drawImage(sunImg, Math.floor(20 + st * 280 - 13), Math.floor(98 - Math.sin(Math.PI * st) * 78 - 13)); ctx.globalAlpha = 1; }
+  if (light < 0.7) { ctx.globalAlpha = clamp(1 - light * 1.4, 0, 1); ctx.drawImage(moonImg, 252, 20); ctx.globalAlpha = 1; }
+  // warm glow near sunrise / sunset
+  const glow = 1 - Math.abs(light * 2 - 1);
+  if (glow > 0.05 && light > 0.001) { const gr = ctx.createLinearGradient(0, 30, 0, 118); gr.addColorStop(0, 'rgba(255,150,90,0)'); gr.addColorStop(1, 'rgba(255,140,80,' + (0.38 * glow) + ')'); ctx.fillStyle = gr; ctx.fillRect(0, 30, W, 88); }
+  ctx.drawImage(bg, 0, 0);
+  ctx.fillStyle = 'rgba(150,215,100,' + (0.3 * light) + ')'; ctx.fillRect(0, 118, W, H - 118); // sunlit grass
+  ctx.fillStyle = 'rgba(255,255,255,' + (0.1 * light) + ')'; ctx.fillRect(0, 100, W, 18);
   // cathouse
   const hs = Sprites.house;
   ctx.drawImage(hs, Math.floor(HOUSE_X - hs.width / 2), GROUND + 4 - hs.height);
@@ -1116,6 +1145,16 @@ if (!OUTFITS.some(o => o.id === OUTFIT)) OUTFIT = 'casual';
 Iustina.pre = OUTFITS.find(o => o.id === OUTFIT).pre;
 
 bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
+// keep the area around the canvas the same colour as the sky / grass at its edges
+let lastEdge = '';
+setInterval(() => {
+  try {
+    const t = ctx.getImageData(2, 1, 1, 1).data, bt = ctx.getImageData(2, H - 2, 1, 1).data;
+    const css = 'linear-gradient(rgb(' + t[0] + ',' + t[1] + ',' + t[2] + ') 50%,rgb(' + bt[0] + ',' + bt[1] + ',' + bt[2] + ') 50%)';
+    if (css !== lastEdge) { $('stage').style.background = css; lastEdge = css; }
+  } catch (e) {}
+}, 1000);
+
 // ===== LAYOUT: keep the 16:9 game as large as the screen allows =====
 function fitCanvas() {
   const st = $('stage'), w = st.clientWidth, h = st.clientHeight;
