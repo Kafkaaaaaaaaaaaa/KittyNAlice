@@ -466,7 +466,25 @@ const Iustina = {
   x: 130, y: GROUND, dir: 1, state: 'idle', timer: 0, targetX: null, cb: null, busy: false, pre: '',
   goTo(x, cb) { this.targetX = clamp(x, 18, W - 18); this.cb = cb || null; this.state = 'walk'; },
   crouchFor(ms, then) { this.state = 'crouch'; setTimeout(() => { this.state = 'idle'; if (then) then(); }, ms); },
-  puffs: [], butt: null, sT: 0,
+  puffs: [], butt: null, sT: 0, lean: 0, kissPulse: 0, faceCache: {},
+  face(spr, key) { // find the eye and lip pixels once, so they can be redrawn closed / puckered
+    if (this.faceCache[key]) return this.faceCache[key];
+    const c = spr.getContext ? spr : null; let f = { eyes: [], lips: null };
+    try {
+      const d = c.getContext('2d').getImageData(0, 0, spr.width, Math.floor(spr.height * 0.5)).data, w = spr.width;
+      const eyes = [], lips = { x0: 1e9, y0: 1e9, x1: -1, y1: -1 };
+      for (let y = 0; y < Math.floor(spr.height * 0.5); y++) for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
+        if (a < 200) continue;
+        if (r === 43 && g === 29 && b === 26) eyes.push([x, y]);
+        if ((r === 192 && g === 57 && b === 43) || (r === 139 && g === 26 && b === 43)) { lips.x0 = Math.min(lips.x0, x); lips.y0 = Math.min(lips.y0, y); lips.x1 = Math.max(lips.x1, x); lips.y1 = Math.max(lips.y1, y); }
+      }
+      const mid = w / 2, grp = side => { const q = eyes.filter(e => side ? e[0] >= mid : e[0] < mid); if (!q.length) return null;
+        return { x0: Math.min(...q.map(e => e[0])), y0: Math.min(...q.map(e => e[1])), x1: Math.max(...q.map(e => e[0])), y1: Math.max(...q.map(e => e[1])) }; };
+      f = { eyes: [grp(0), grp(1)].filter(Boolean), lips: lips.x1 >= 0 ? lips : null };
+    } catch (e) {}
+    return (this.faceCache[key] = f);
+  },
   smoke() {
     this.state = 'smoke'; this.sT = 0; this.busy = true;
   },
@@ -477,6 +495,7 @@ const Iustina = {
   },
   update() {
     this.timer++;
+    this.lean += (((G.kissing || this.kissPulse > 0) ? 1 : 0) - this.lean) * 0.22; if (this.kissPulse > 0) this.kissPulse--;
     this.puffs.forEach(q => { q.y -= q.vy; q.x += q.vx; q.r += 0.04; q.life--; });
     this.puffs = this.puffs.filter(q => q.life > 0);
     if (this.butt) { const b = this.butt; if (b.y < GROUND + 2) { b.y += b.vy; b.vy += 0.25; b.x += b.vx; } b.life--; if (b.life <= 0) this.butt = null; }
@@ -517,7 +536,21 @@ const Iustina = {
     const s = Sprites[this.pre + n + (this.dir === -1 ? '_flip' : '')];
     const bob = (this.state === 'idle' && Math.floor(this.timer / 40) % 2) ? 1 : 0;
     ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(Math.floor(this.x - 12), this.y, 24, 3);
-    ctx.drawImage(s, Math.floor(this.x - s.width / 2), this.y - s.height + bob);
+    const sx = Math.floor(this.x - s.width / 2), sy = this.y - s.height + bob;
+    if (this.lean > 0.03) {
+      // bow toward the cat: pivot at the feet, lean the whole body, then close the eyes and pucker up
+      const L = this.lean, d = this.dir;
+      ctx.save(); const py = this.y - s.height * 0.3; ctx.translate(Math.floor(this.x), py); ctx.rotate(d * (this.state === 'crouch' ? 0.1 : 0.3) * L); ctx.translate(-Math.floor(this.x), -py);
+      ctx.drawImage(s, sx, sy);
+      if (L > 0.55) {
+        const f = this.face(s, this.pre + n + (this.dir === -1 ? '_flip' : '')), skin = '#f1c27d';
+        f.eyes.forEach(e => { ctx.fillStyle = skin; ctx.fillRect(sx + e.x0, sy + e.y0, e.x1 - e.x0 + 1, e.y1 - e.y0 + 1);
+          ctx.fillStyle = '#2b1d1a'; ctx.fillRect(sx + e.x0, sy + e.y1, e.x1 - e.x0 + 1, 1); });
+        if (f.lips) { const w = f.lips.x1 - f.lips.x0 + 1, h = f.lips.y1 - f.lips.y0 + 1; ctx.fillStyle = skin; ctx.fillRect(sx + f.lips.x0, sy + f.lips.y0, w, h);
+          ctx.fillStyle = '#d4384a'; ctx.fillRect(sx + f.lips.x0 + Math.floor(w / 2) - 1 + (d > 0 ? 1 : 0), sy + f.lips.y0, 3, Math.max(2, h - 1)); }
+      }
+      ctx.restore();
+    } else ctx.drawImage(s, sx, sy);
     if (this.state === 'smoke') this.drawSmoke();
     this.drawPuffs();
   },
@@ -857,7 +890,7 @@ window.action = function (type) {
         particle('\u2665', cx + (Math.random() * 10 - 5), cy - 30, '#ff4f7a'); particle('\u2665', cx - 6, cy - 38, '#ff8fab'); particle('\u2665', cx + 7, cy - 36, '#ff6f91');
         if (G.kissN % 2 === 0) setTimeout(() => sound('purr'), 200);
       };
-      if (c.state === 'held') { smooch(c.x, c.y); done(); return; }
+      if (c.state === 'held') { Iustina.kissPulse = 28; smooch(c.x, c.y); done(); return; }
       if (G.inBed) { if (c.state === 'cuddle') { smooch(c.x, c.y); done(); } return; }
       if (G.kissWalking) return;
       // one kiss, from wherever she's crouching; every tap while she's there is another kiss
