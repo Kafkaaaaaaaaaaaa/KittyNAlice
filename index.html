@@ -851,27 +851,32 @@ window.action = function (type) {
       });
       break; }
     case 'kiss': {
-      const done = () => { st.happy = clamp(st.happy + 9, 0, 100); st.clean = clamp(st.clean, 0, 100); updateUI(); addCoins(2); };
+      const done = () => { st.happy = clamp(st.happy + 4, 0, 100); updateUI(); G.kissN = (G.kissN || 0) + 1; if (G.kissN % 3 === 0) addCoins(1); };
       const smooch = (cx, cy) => {
         sound('kiss'); bubble('Mwah!', Iustina.x, Iustina.y - 64);
-        particle('\u2665', cx, cy - 30, '#ff4f7a'); particle('\u2665', cx - 6, cy - 38, '#ff8fab'); particle('\u2665', cx + 7, cy - 36, '#ff6f91');
-        setTimeout(() => sound('purr'), 250);
+        particle('\u2665', cx + (Math.random() * 10 - 5), cy - 30, '#ff4f7a'); particle('\u2665', cx - 6, cy - 38, '#ff8fab'); particle('\u2665', cx + 7, cy - 36, '#ff6f91');
+        if (G.kissN % 2 === 0) setTimeout(() => sound('purr'), 200);
       };
-      if (c.state === 'held') { Iustina.dir = Iustina.dir || 1; smooch(c.x, c.y); done(); return; }
+      if (c.state === 'held') { smooch(c.x, c.y); done(); return; }
       if (G.inBed) { if (c.state === 'cuddle') { smooch(c.x, c.y); done(); } return; }
-      if (!startTask()) return;
-      c.setState('wait');
-      Iustina.goTo(c.x + sideOf(c.x) * 22, () => {
-        Iustina.dir = c.x > Iustina.x ? 1 : -1;
+      if (G.kissWalking) return;
+      // one kiss, from wherever she's crouching; every tap while she's there is another kiss
+      const kissNow = () => {
+        if (!G.kissing) { G.kissing = true; G.kissX0 = Iustina.x; Iustina.dir = c.x > Iustina.x ? 1 : -1; c.setState('wait'); }
         Iustina.state = 'crouch';
-        const d = Iustina.dir, x0 = Iustina.x;
-        setTimeout(() => { Iustina.x = x0 + d * 3; }, 250);
-        setTimeout(() => { Iustina.x = x0 + d * 6; smooch(c.x, c.y); }, 600);
-        setTimeout(() => {
-          Iustina.x = x0; Iustina.state = 'idle'; c.freeze = 120; c.setState('petted');
-          done(); endTask();
-        }, 1500);
-      });
+        const d = Iustina.dir; Iustina.x = G.kissX0 + d * 2;
+        setTimeout(() => { if (G.kissing) Iustina.x = G.kissX0 + d * 6; }, 90);
+        smooch(c.x, c.y); done();
+        clearTimeout(G.kissT);
+        G.kissT = setTimeout(() => {
+          G.kissing = false; Iustina.x = G.kissX0; Iustina.state = 'idle'; c.freeze = 90; c.setState('petted'); endTask();
+        }, 1100);
+      };
+      if (G.kissing) { kissNow(); return; }
+      if (!startTask()) return;
+      if (Math.abs(Iustina.x - c.x) < 34 && Iustina.state === 'idle') { kissNow(); return; }
+      c.setState('wait'); G.kissWalking = true;
+      Iustina.goTo(c.x + sideOf(c.x) * 22, () => { G.kissWalking = false; Iustina.dir = c.x > Iustina.x ? 1 : -1; kissNow(); });
       break; }
     case 'pet': {
       if (c.state === 'held') { particle('♥', c.x, c.y - 24, '#ff6f91'); st.happy = clamp(st.happy + 2, 0, 100); sound('purr'); updateUI(); return; }
