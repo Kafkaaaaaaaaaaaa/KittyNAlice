@@ -47,6 +47,7 @@
   .dtabs button.on { color:var(--accent); border-bottom-color:var(--accent); }
   .dpanel { display:none; grid-template-columns:repeat(4,1fr); gap:8px; }
   .dpanel.on { display:grid; }
+  .dpanel.wrap { grid-template-columns:repeat(5,1fr); gap:6px; }
   .act { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:62px; padding:8px 4px;
          background:var(--panel2); border:1px solid var(--line); border-radius:12px; color:var(--text); font-size:12px; font-weight:700; cursor:pointer; }
   .act .ic { font-size:20px; line-height:1; }
@@ -112,10 +113,11 @@
       <button class="act" onclick="action('treat')"><span class="ic">&#x1F36C;</span>Treat</button>
       <button class="act" onclick="action('brush')"><span class="ic">&#x1FAAE;</span>Brush</button>
     </div>
-    <div class="dpanel" id="p-play">
+    <div class="dpanel wrap" id="p-play">
       <button class="act" onclick="action('play')"><span class="ic">&#x1F9F6;</span>Play</button>
       <button class="act" onclick="action('playboth')"><span class="ic">&#x1F43E;</span>Play both</button>
       <button class="act" onclick="action('pet')"><span class="ic">&#x1F90D;</span>Pet</button>
+      <button class="act" onclick="action('kiss')"><span class="ic">&#x1F618;</span>Kiss</button>
       <button class="act" onclick="action('hold')"><span class="ic">&#x1F932;</span>Pick up</button>
     </div>
     <div class="dpanel" id="p-rest">
@@ -162,6 +164,14 @@ function sound(type, p = 1) {
   const o = a.createOscillator(), g = a.createGain();
   o.connect(g); g.connect(a.destination);
   const t = a.currentTime;
+  if (type === 'kiss') {
+    o.type = 'sine'; o.frequency.setValueAtTime(1100, t); o.frequency.exponentialRampToValueAtTime(380, t + 0.07);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.18, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + 0.09); o.start(t); o.stop(t + 0.1);
+    const o2 = a.createOscillator(), g2 = a.createGain(); o2.connect(g2); g2.connect(a.destination); o2.type = 'sine';
+    o2.frequency.setValueAtTime(900, t + 0.1); o2.frequency.exponentialRampToValueAtTime(500, t + 0.15);
+    g2.gain.setValueAtTime(0.0001, t + 0.1); g2.gain.linearRampToValueAtTime(0.1, t + 0.11); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.17); o2.start(t + 0.1); o2.stop(t + 0.18);
+    return;
+  }
   if (type === 'puff') {
     const len = Math.floor(a.sampleRate * 0.7), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / len);
@@ -838,6 +848,29 @@ window.action = function (type) {
           });
           endTask();
         });
+      });
+      break; }
+    case 'kiss': {
+      const done = () => { st.happy = clamp(st.happy + 9, 0, 100); st.clean = clamp(st.clean, 0, 100); updateUI(); addCoins(2); };
+      const smooch = (cx, cy) => {
+        sound('kiss'); bubble('Mwah!', Iustina.x, Iustina.y - 64);
+        particle('\u2665', cx, cy - 30, '#ff4f7a'); particle('\u2665', cx - 6, cy - 38, '#ff8fab'); particle('\u2665', cx + 7, cy - 36, '#ff6f91');
+        setTimeout(() => sound('purr'), 250);
+      };
+      if (c.state === 'held') { Iustina.dir = Iustina.dir || 1; smooch(c.x, c.y); done(); return; }
+      if (G.inBed) { if (c.state === 'cuddle') { smooch(c.x, c.y); done(); } return; }
+      if (!startTask()) return;
+      c.setState('wait');
+      Iustina.goTo(c.x + sideOf(c.x) * 22, () => {
+        Iustina.dir = c.x > Iustina.x ? 1 : -1;
+        Iustina.state = 'crouch';
+        const d = Iustina.dir, x0 = Iustina.x;
+        setTimeout(() => { Iustina.x = x0 + d * 3; }, 250);
+        setTimeout(() => { Iustina.x = x0 + d * 6; smooch(c.x, c.y); }, 600);
+        setTimeout(() => {
+          Iustina.x = x0; Iustina.state = 'idle'; c.freeze = 120; c.setState('petted');
+          done(); endTask();
+        }, 1500);
       });
       break; }
     case 'pet': {
