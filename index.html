@@ -25,6 +25,17 @@
   .tab { grid-column:span 2; }
   .tab.on { background:var(--border); color:#fff; }
   .hint { text-align:center; color:#cfc3a8; font-size:11px; padding:6px; }
+  #outfit-panel { position:fixed; inset:0; background:rgba(20,16,26,.85); display:none; align-items:center; justify-content:center; z-index:20; padding:16px; }
+  #outfit-panel.open { display:flex; }
+  #outfit-panel .op { background:var(--ui); border:4px solid var(--border); padding:14px; width:100%; max-width:420px; color:var(--text); }
+  #outfit-panel h2 { margin:0 0 4px; font-size:18px; text-transform:uppercase; }
+  #outfit-panel p { margin:0 0 10px; font-size:12px; }
+  .ocards { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .ocard { background:#fff; border:3px solid var(--border); padding:8px; text-align:center; cursor:pointer; box-shadow:2px 2px 0 var(--border); }
+  .ocard.on { background:#f3d9b0; }
+  .ocard canvas { width:100%; height:auto; aspect-ratio:1/1; background:#2c2c5c; image-rendering:pixelated; }
+  .ocard .lab { font-weight:bold; font-size:13px; text-transform:uppercase; margin-top:6px; }
+  #outfit-close { width:100%; }
 </style>
 </head>
 <body>
@@ -50,8 +61,18 @@
     <button onclick="action('hold')">Pick Up</button>
     <button onclick="action('sleep')">Sleep</button>
     <button id="bed-btn" onclick="action('bed')">Bed</button>
+    <button id="outfit-btn">Outfit</button>
   </div>
   <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The cat you leave goes into the cathouse. Play Both brings them out together.</div>
+</div>
+
+<div id="outfit-panel">
+  <div class="op">
+    <h2>Outfits</h2>
+    <p>Pick a look for Iustina. Her hair changes colour with the outfit.</p>
+    <div class="ocards" id="ocards"></div>
+    <button id="outfit-close">Close</button>
+  </div>
 </div>
 
 <script>
@@ -255,8 +276,8 @@ function outlineRows(raw) {
   }).join(''));
 }
 const Sprites = {};
-function compileSprites(pal, prefix, filter) {
-  for (const [name, raw] of Object.entries(SPR)) {
+function compileSprites(pal, prefix, filter, source = SPR) {
+  for (const [name, raw] of Object.entries(source)) {
     if (filter && !filter(name)) continue;
     const sc = /^cat/.test(name) ? CAT_SC : SC;
     const rows = /^(cat|girl|house)/.test(name) ? outlineRows(raw) : raw;
@@ -273,6 +294,42 @@ function compileSprites(pal, prefix, filter) {
 }
 compileSprites(PAL, '', null);
 compileSprites(PAL2, 'b_', n => /^cat/.test(n));
+
+// Outfit "bloody gown": one-piece white dress, blood splatters, dark hair, dark lips, blood drips on the face.
+const PAL_GOWN = Object.assign({}, PAL, { H:'#1d1412', h:'#2e211d', N:'#ece6e0', k:'#3b1d1d', L:'#8b1a2b', X:'#8b1a1a' });
+const GOWN_HEAD = [
+  ".....HHHHHH.....",
+  "....HHHHHHHH....",
+  "...HHSSSSSSHH...",
+  "...HHSKSSKSHH...",
+  "...HHSXSSXSHH...",
+  "...HHSXLLXSHH...",
+  "...HHXSSSSXHH..."
+];
+const GOWN_DRESS = [
+  "...NNNNNNNNNNN...",
+  "..NNNXNNNNNNNNN..",
+  "..NNNNNNNNXNNNN..",
+  ".NNNNNNXNNNNNNNN.",
+  ".NNNNNNNNNNXNNNN.",
+  "NNNNNNNNNNNNNNNNN",
+  "NNNNXNNNNNNNNXNNN",
+  "NNNNNNNNXNNNNNNNN",
+  "NNXNNNNNNNNNNNXNN",
+  "kkkkkkkkkkkkkkkkk"
+];
+// Body rows from the normal sprite, recoloured: top and skirt become the gown, shoes become dark.
+const gownBody = rows => rows.map(r => r.replace(/[WJ]/g, 'N').replace(/R/g, 'k'));
+const SPR_GOWN = {
+  girl_idle: [...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 13)), ...GOWN_DRESS],
+  girl_walk: [...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 13)), ...GOWN_DRESS.slice(0, -1), "kkkkkkkkkkkkkkkkk"],
+  girl_crouch: ["................", "................", "................", "................",
+    ...GOWN_HEAD, ...gownBody(SPR.girl_idle.slice(7, 11)), "..NNNNNNNNNNNNNN..", "NNNNNNNNNNNNNNNNN", "kkkkkkkkkkkkkkkkk"],
+  girl_lie: gownBody(SPR.girl_lie)
+};
+compileSprites(PAL_GOWN, 'o_', null, SPR_GOWN);
+const OUTFITS = [ { id: 'casual', label: 'Casual', pre: '' }, { id: 'gown', label: 'Bloody gown', pre: 'o_' } ];
+let OUTFIT = 'casual';
 
 // ===== BACKGROUND (pre-rendered) =====
 const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
@@ -305,7 +362,7 @@ const stars = [];
 
 // ===== IUSTINA =====
 const Iustina = {
-  x: 130, y: GROUND, dir: 1, state: 'idle', timer: 0, targetX: null, cb: null, busy: false,
+  x: 130, y: GROUND, dir: 1, state: 'idle', timer: 0, targetX: null, cb: null, busy: false, pre: '',
   goTo(x, cb) { this.targetX = clamp(x, 18, W - 18); this.cb = cb || null; this.state = 'walk'; },
   crouchFor(ms, then) { this.state = 'crouch'; setTimeout(() => { this.state = 'idle'; if (then) then(); }, ms); },
   update() {
@@ -318,7 +375,7 @@ const Iustina = {
   },
   draw() {
     if (this.state === 'lie') {
-      const s = Sprites.girl_lie;
+      const s = Sprites[this.pre + 'girl_lie'];
       ctx.drawImage(s, BED_X - 30, GROUND - 8 - s.height + ((Math.floor(this.timer / 50) % 2) ? 1 : 0));
       ctx.fillStyle = '#8f6fb5'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 7);
       ctx.fillStyle = '#a98bd0'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 1);
@@ -327,7 +384,7 @@ const Iustina = {
     let n = 'girl_idle';
     if (this.state === 'walk') n = (Math.floor(this.timer / 10) % 2) ? 'girl_walk' : 'girl_idle';
     else if (this.state === 'crouch') n = 'girl_crouch';
-    const s = Sprites[n + (this.dir === -1 ? '_flip' : '')];
+    const s = Sprites[this.pre + n + (this.dir === -1 ? '_flip' : '')];
     const bob = (this.state === 'idle' && Math.floor(this.timer / 40) % 2) ? 1 : 0;
     ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(Math.floor(this.x - 12), this.y, 24, 3);
     ctx.drawImage(s, Math.floor(this.x - s.width / 2), this.y - s.height + bob);
@@ -752,6 +809,35 @@ $('tab-ticky').addEventListener('click', () => switchTo('ticky'));
 load();
 initCats();
 updateUI();
+function setOutfit(id) {
+  if (!OUTFITS.some(o => o.id === id)) return;
+  OUTFIT = id;
+  Iustina.pre = OUTFITS.find(o => o.id === id).pre;
+  try { localStorage.setItem('alice_outfit', id); } catch (e) {}
+  bubble(id === 'gown' ? 'Ooh, dramatic!' : 'Back to normal', Iustina.x, Iustina.y - 50);
+  buildOutfitCards();
+}
+function buildOutfitCards() {
+  const box = $('ocards'); box.innerHTML = '';
+  OUTFITS.forEach(o => {
+    const card = document.createElement('div');
+    card.className = 'ocard' + (o.id === OUTFIT ? ' on' : '');
+    const cv = document.createElement('canvas'); cv.width = 96; cv.height = 96;
+    const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
+    const sp = Sprites[o.pre + 'girl_idle'];
+    x.drawImage(sp, Math.floor((96 - sp.width) / 2), 96 - sp.height - 4);
+    const lab = document.createElement('div'); lab.className = 'lab'; lab.textContent = o.label;
+    card.append(cv, lab);
+    card.addEventListener('click', () => setOutfit(o.id));
+    box.append(card);
+  });
+}
+$('outfit-btn').addEventListener('click', () => { buildOutfitCards(); $('outfit-panel').classList.add('open'); });
+$('outfit-close').addEventListener('click', () => $('outfit-panel').classList.remove('open'));
+try { OUTFIT = localStorage.getItem('alice_outfit') || 'casual'; } catch (e) {}
+if (!OUTFITS.some(o => o.id === OUTFIT)) OUTFIT = 'casual';
+Iustina.pre = OUTFITS.find(o => o.id === OUTFIT).pre;
+
 bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
 requestAnimationFrame(loop);
 </script>
