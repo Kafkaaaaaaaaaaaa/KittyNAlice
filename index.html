@@ -810,7 +810,7 @@ function sideOf(x) { return Iustina.x <= x ? -1 : 1; }
 window.action = function (type) {
   ac(); sound('click');
   const c = cat(), st = c.stats;
-  if (c.state === 'held' && type !== 'hold' && type !== 'pet') { bubble('Put ' + c.name + ' down first', Iustina.x, Iustina.y - 50); return; }
+  if (c.state === 'held' && type !== 'hold' && type !== 'pet' && type !== 'kiss') { bubble('Put ' + c.name + ' down first', Iustina.x, Iustina.y - 50); return; }
   if (G.inBed && type !== 'bed' && type !== 'pet') { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
   switch (type) {
     case 'feed': {
