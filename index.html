@@ -508,11 +508,11 @@ const Iustina = {
         const k = (t - 185);
         if (k % 150 === 20) { sound('puff'); }
         if (k % 150 >= 40 && k % 150 < 110 && t % 6 === 0) this.puffs.push({ x: a.mx + this.dir * 4, y: a.my - 2, vx: this.dir * 0.25 + (Math.random() - 0.5) * 0.2, vy: 0.35 + Math.random() * 0.2, r: 2, life: 90 });
-        if (k % 150 === 60) bubble(['mmm...', '*exhale*', 'ahh'][Math.floor(k / 150) % 3], this.x, this.y - 64);
+        if (k % 150 === 60) bubble('mm', this.x, this.y - 64);
       }
       if (t >= 185 + 450) {
         this.butt = { x: a.mx + this.dir * 8, y: a.my + 4, vx: this.dir * 0.8, vy: -1.2, life: 900 };
-        this.state = 'idle'; this.busy = false; sound('click'); bubble('Ugh, the habit...', this.x, this.y - 64);
+        this.state = 'idle'; this.busy = false; sound('click');
       }
       return;
     }
