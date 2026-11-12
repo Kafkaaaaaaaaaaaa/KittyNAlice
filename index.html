@@ -559,7 +559,8 @@ const Iustina = {
   draw() {
     if (this.state === 'lie') {
       const s = Sprites[this.pre + 'girl_lie'];
-      ctx.drawImage(s, BED_X - 30, GROUND - 8 - s.height + ((Math.floor(this.timer / 50) % 2) ? 1 : 0));
+      const ly = GROUND - 8 - s.height + ((Math.floor(this.timer / 50) % 2) ? 1 : 0);
+      ctx.drawImage(s, BED_X - 30, ly); this.drawSparkle(s, this.pre + 'girl_lie', BED_X - 30, ly);
       ctx.fillStyle = '#8f6fb5'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 7);
       ctx.fillStyle = '#a98bd0'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 1);
       return;
@@ -585,10 +586,36 @@ const Iustina = {
         if (f.lips) { const w = f.lips.x1 - f.lips.x0 + 1, h = f.lips.y1 - f.lips.y0 + 1; ctx.fillStyle = skin; ctx.fillRect(sx + f.lips.x0, sy + f.lips.y0, w, h);
           ctx.fillStyle = '#d4384a'; ctx.fillRect(sx + f.lips.x0 + Math.floor(w / 2) - 1 + (d > 0 ? 1 : 0), sy + f.lips.y0, 3, Math.max(2, h - 1)); }
       }
+      this.drawSparkle(s, this.pre + n + (this.dir === -1 ? '_flip' : ''), sx, sy);
       ctx.restore();
-    } else ctx.drawImage(s, sx, sy);
+    } else { ctx.drawImage(s, sx, sy); this.drawSparkle(s, this.pre + n + (this.dir === -1 ? '_flip' : ''), sx, sy); }
     if (this.state === 'smoke') this.drawSmoke();
     this.drawPuffs();
+  },
+  // Starry eyes whenever she's doing something with a cat
+  catTime() {
+    if (this.state === 'smoke') return false;
+    if (G.kissing || this.kissPulse > 0 || this.busy) return true;
+    return ['kitty', 'ticky'].some(id => ['petted', 'held', 'cuddle', 'play', 'eat', 'beg'].includes(CATS[id].state) && CATS[id].state !== 'house');
+  },
+  drawSparkle(spr, key, sx, sy) {
+    if (!this.catTime()) return;
+    const f = this.face(spr, key); if (!f.eyes.length) return;
+    const t = this.timer, closed = this.lean > 0.55;
+    f.eyes.forEach((e, i) => {
+      const ex = sx + e.x0, ey = sy + e.y0, w = e.x1 - e.x0 + 1;
+      if (!closed) { // shiny highlights in the eyes
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(ex, ey, 1, 1);
+        if (w >= 3 && (Math.floor(t / 12) + i) % 3 !== 0) ctx.fillRect(ex + w - 1, ey + (e.y1 - e.y0), 1, 1);
+      }
+      // little twinkling stars beside the eyes
+      const ph = Math.sin(t / 7 + i * 3.14), a = clamp(ph * 0.4 + 0.75, 0.4, 1);
+      const cx = i === 0 ? ex - 3 : ex + w + 2, cy = ey - 2 - (Math.floor(t / 20 + i) % 2);
+      ctx.globalAlpha = a; ctx.fillStyle = i ? '#fff2a8' : '#ffd1e8';
+      ctx.fillRect(cx, cy, 1, 1);
+      if (ph > -0.2) { ctx.fillRect(cx - 1, cy, 1, 1); ctx.fillRect(cx + 1, cy, 1, 1); ctx.fillRect(cx, cy - 1, 1, 1); ctx.fillRect(cx, cy + 1, 1, 1); }
+      ctx.globalAlpha = 1;
+    });
   },
   drawPuffs() {
     this.puffs.forEach(q => { ctx.globalAlpha = clamp(q.life / 50, 0, 0.6); ctx.fillStyle = '#cfd3dc'; const r = Math.round(q.r); ctx.fillRect(Math.floor(q.x - r), Math.floor(q.y - r), r * 2, r * 2); });
