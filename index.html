@@ -132,7 +132,7 @@
       <button class="act" onclick="action('smoke')"><span class="ic">&#x1F6AC;</span>Smoke</button>
       <button class="act" id="outfit-btn"><span class="ic">&#x1F457;</span>Outfit</button>
     </div>
-    <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The one you leave goes into the cathouse. Tap the cathouse to peek inside.</div>
+    <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The one you leave goes into the cathouse. Tap the cathouse or the bed to peek inside.</div>
   </div>
 </div>
 
@@ -1151,6 +1151,7 @@ canvas.addEventListener('pointerdown', e => {
   }
   const hs = Sprites.house;
   if (Math.abs(x - HOUSE_X) < hs.width / 2 + 2 && y > GROUND + 4 - hs.height && y < GROUND + 8) { openHouse(); return; }
+  if (Math.abs(x - BED_X) < 40 && y > GROUND - 30 && y < GROUND + 10) { openBedroom(); return; }
   if (y > 115 && !Iustina.busy) Iustina.goTo(x);
 });
 
@@ -1469,19 +1470,136 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
     const vg = g.createRadialGradient(80, 52, 26, 80, 52, 112); vg.addColorStop(0, 'rgba(10,6,20,0)'); vg.addColorStop(1, 'rgba(10,6,20,' + (0.5 + 0.2 * night) + ')'); g.fillStyle = vg; g.fillRect(0, 0, HW, HH);
     if (night > 0.2) { g.fillStyle = 'rgba(30,30,90,' + (0.12 * night) + ')'; g.fillRect(0, 0, HW, HH); }
   }
+  // ================= IUSTINA'S BEDROOM (tap her bed) =================
+  let bedBack, bedFront, bedSig = '';
+  const DIG = { 0: '111101101101111', 1: '010110010010111', 2: '111001111100111', 3: '111001111001111', 4: '101101111001001', 5: '111100111001111', 6: '111100111101111', 7: '111001001001001', 8: '111101111101111', 9: '111101111001111' };
+  const gauss = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
+  function drawWindow(c, wx, wy, ww, wh, ms, light) {
+    const night = 1 - light, sky = c.createLinearGradient(0, wy, 0, wy + wh);
+    sky.addColorStop(0, mixc('#0b1030', '#5aa2ea', light)); sky.addColorStop(1, mixc('#2b3866', '#cbe8fb', light));
+    c.save(); c.beginPath(); c.rect(wx, wy, ww, wh); c.clip(); c.fillStyle = sky; c.fillRect(wx, wy, ww, wh);
+    if (night > 0.3) { c.globalAlpha = night; for (let i = 0; i < 14; i++) px(c, wx + 2 + (i * 11) % (ww - 4), wy + 2 + (i * 7) % 18, (Math.sin(ms / 400 + i) > 0.2) ? '#fff' : '#9aa7d8'); ell(c, wx + 29, wy + 10, 4.6, 4.6, '#f3ecd0'); ell(c, wx + 31, wy + 9, 4, 4.2, mixc('#0b1030', '#2b3866', 0.4)); c.globalAlpha = 1; }
+    if (light > 0.15) { c.globalAlpha = clamp(light * 1.5, 0, 1); ell(c, wx + 12, wy + 11, 4.5, 4.5, '#ffe07a'); ell(c, wx + 12, wy + 11, 3, 3, '#fff6b8'); const cx = wx + ((ms / 600) % 60) - 10; ell(c, cx, wy + 24, 7, 2.6, '#fff'); ell(c, cx + 5, wy + 23, 4, 2.2, '#fff'); c.globalAlpha = 1; }
+    c.restore();
+    c.fillStyle = '#e8e0d4'; c.fillRect(wx - 2, wy - 2, ww + 4, 2); c.fillRect(wx - 2, wy + wh, ww + 4, 3); c.fillRect(wx - 2, wy, 2, wh); c.fillRect(wx + ww, wy, 2, wh);
+    c.fillStyle = '#b9b0a2'; c.fillRect(wx - 2, wy + wh + 2, ww + 4, 1); c.fillStyle = '#e8e0d4'; c.fillRect(wx + ww / 2 - 1, wy, 2, wh); c.fillRect(wx, wy + wh / 2 - 1, ww, 2);
+    const sway = Math.sin(ms / 1800) * 0.6; c.fillStyle = '#9a86c4'; c.fillRect(wx - 3, wy - 3, 9 + sway, wh + 5); c.fillRect(wx + ww - 7, wy - 3, 9 - sway, wh + 5);
+    c.fillStyle = '#b8a6dc'; for (let i = 0; i < 4; i++) { c.fillRect(wx - 3 + i * 2, wy - 3, 1, wh + 5); c.fillRect(wx + ww - 7 + i * 2, wy - 3, 1, wh + 5); } c.fillStyle = '#6e5a9a'; c.fillRect(wx - 4, wy - 4, ww + 8, 2);
+  }
+  function catPortrait(b, x, y, kind) {
+    b.fillStyle = '#5a3c26'; b.fillRect(x, y, 13, 15); b.fillStyle = kind === 'siamese' ? '#b9a6d8' : '#a8c8b0'; b.fillRect(x + 1, y + 1, 11, 13);
+    const sid = kind === 'siamese', face = sid ? '#e6c595' : '#b5844f', pts = sid ? '#5e3f35' : '#40281a';
+    b.fillStyle = face; b.fillRect(x + 3, y + 5, 7, 6); b.fillRect(x + 3, y + 3, 2, 2); b.fillRect(x + 8, y + 3, 2, 2);
+    if (sid) { b.fillStyle = pts; b.fillRect(x + 4, y + 6, 5, 4); b.fillRect(x + 3, y + 3, 2, 1); b.fillRect(x + 8, y + 3, 2, 1); } else { b.fillStyle = pts; b.fillRect(x + 5, y + 5, 1, 2); b.fillRect(x + 7, y + 5, 1, 2); b.fillStyle = '#f1e2c8'; b.fillRect(x + 5, y + 9, 3, 2); }
+    b.fillStyle = sid ? '#5fb6d4' : '#8aa65a'; b.fillRect(x + 4, y + 7, 1, 1); b.fillRect(x + 8, y + 7, 1, 1); b.fillStyle = '#d99a90'; b.fillRect(x + 6, y + 9, 1, 1);
+  }
+  function buildBedroom() {
+    const mk = () => { const c = document.createElement('canvas'); c.width = HW; c.height = HH; return c; };
+    bedBack = mk(); bedFront = mk(); const b = bedBack.getContext('2d'), f = bedFront.getContext('2d');
+    // wall: dusky plum with soft vertical stripes and a white skirting board
+    for (let x = 0; x < HW; x += 8) { b.fillStyle = (x / 8) % 2 ? '#5f4b73' : '#665179'; b.fillRect(x, 0, 8, 62); b.fillStyle = '#74608a'; b.fillRect(x, 0, 1, 62); }
+    for (let y = 0; y < 62; y += 6) for (let x = 3; x < HW; x += 16) px(b, x + (y % 12 ? 8 : 0), y + 3, '#7a6591');
+    b.fillStyle = '#e8e0d4'; b.fillRect(0, 60, HW, 5); b.fillStyle = '#b9b0a2'; b.fillRect(0, 64, HW, 1); b.fillStyle = '#fff'; b.fillRect(0, 60, HW, 1);
+    for (let y = 65; y < HH; y += 8) { b.fillStyle = ((y - 65) / 8) % 2 ? '#8f6a46' : '#85613f'; b.fillRect(0, y, HW, 8); b.fillStyle = '#5c3f28'; b.fillRect(0, y, HW, 1); for (let x = (y * 5) % 29; x < HW; x += 33) b.fillRect(x, y, 1, 8); }
+    // round pink rug
+    ['#e8a9bd', '#f6d3de', '#e8a9bd', '#d4849e'].forEach((c, i) => ell(b, 70, 91, 62 - i * 6, 10 - i * 1.2, c));
+    for (let a = 0; a < 40; a++) { const th = a / 40 * Math.PI * 2; px(b, 70 + Math.cos(th) * 63, 91 + Math.sin(th) * 10.4, '#f6d3de'); }
+    // wall art: moon poster, two framed portraits of the cats, shelf with plant
+    b.fillStyle = '#e8e0d4'; b.fillRect(8, 12, 22, 28); b.fillStyle = '#25305c'; b.fillRect(10, 14, 18, 24); ell(b, 19, 24, 5, 5, '#f3ecd0'); ell(b, 21, 23, 4.4, 4.6, '#25305c'); [[13, 18], [24, 17], [15, 33], [25, 31], [20, 35]].forEach(([x, y]) => px(b, x, y, '#fff6c0'));
+    catPortrait(b, 94, 12, 'siamese'); catPortrait(b, 110, 12, 'tabby');
+    b.fillStyle = '#4a3220'; b.fillRect(124, 24, 30, 3); b.fillStyle = '#8b6a48'; b.fillRect(124, 24, 30, 1);
+    b.fillStyle = '#b5673f'; b.fillRect(130, 17, 8, 7); b.fillStyle = '#d98a5c'; b.fillRect(130, 17, 8, 1); b.fillStyle = '#3d7a4a'; [[131, 10], [134, 8], [136, 11], [132, 13], [137, 14]].forEach(([x, y]) => b.fillRect(x, y, 2, 8)); b.fillStyle = '#5da86a'; [[131, 10], [134, 8], [136, 11]].forEach(([x, y]) => b.fillRect(x, y, 1, 4));
+    [['#a4443f', 8], ['#3f6f8a', 6], ['#d9a441', 7]].reduce((x, [c, h]) => { b.fillStyle = c; b.fillRect(x, 24 - h, 4, h); b.fillStyle = lt(c, 0.3); b.fillRect(x, 24 - h, 1, h); return x + 5; }, 140);
+    // floor plant
+    b.fillStyle = '#b5673f'; b.fillRect(4, 74, 11, 12); b.fillStyle = '#d98a5c'; b.fillRect(4, 74, 11, 2); b.fillStyle = '#2f6a3c'; [[6, 58, 3, 17], [9, 54, 3, 21], [12, 60, 3, 15], [3, 64, 3, 11], [14, 66, 3, 9]].forEach(([x, y, w, h]) => b.fillRect(x, y, w, h)); b.fillStyle = '#4f9a5a'; [[6, 58, 1, 8], [9, 54, 1, 10], [12, 60, 1, 7]].forEach(([x, y, w, h]) => b.fillRect(x, y, w, h));
+    // slippers on the rug
+    [[34, 97], [46, 98]].forEach(([x, y]) => { ell(b, x, y, 5, 2.6, '#f2e6d2'); ell(b, x - 1, y - 1, 3.4, 1.6, '#d99ab0'); });
+    // nightstand: drawers, knob, lamp base, alarm clock case
+    b.fillStyle = '#6b4a30'; b.fillRect(122, 66, 32, 24); b.fillStyle = '#8b6a48'; b.fillRect(122, 66, 32, 2); b.fillStyle = '#4a3220'; b.fillRect(122, 88, 32, 2); b.fillRect(124, 76, 28, 1); b.fillStyle = '#d9b36a'; b.fillRect(136, 71, 4, 2); b.fillRect(136, 82, 4, 2);
+    b.fillStyle = '#4a3220'; b.fillRect(124, 90, 3, 5); b.fillRect(149, 90, 3, 5);
+    b.fillStyle = '#e8e0d4'; b.fillRect(125, 60, 9, 6); b.fillStyle = '#9a86c4'; b.fillRect(127, 56, 5, 4); // lamp base + stem
+    b.fillStyle = '#2b2b3a'; b.fillRect(138, 59, 17, 7); b.fillStyle = '#4a4a60'; b.fillRect(138, 59, 17, 1);
+    // headboard (rounded, slatted) and the bed base with legs
+    const wood = ['#9b7048', '#7a5636', '#5d3f27', '#412a19'];
+    for (let y = 40; y < 80; y++) { const w = y < 46 ? 5 + (46 - y) * 0 : 8; for (let x = 20; x < 20 + w; x++) px(b, x, y, rampPick(wood, 0.15 + (x - 20) / 12, x, y)); }
+    ell(b, 24, 44, 4.2, 4.2, wood[1]); for (let y = 48; y < 78; y += 6) { b.fillStyle = wood[3]; b.fillRect(21, y, 7, 1); }
+    for (let x = 28; x < 120; x++) for (let y = 70; y < 78; y++) px(b, x, y, rampPick(wood, 0.1 + (y - 70) / 10, x, y));
+    b.fillStyle = wood[3]; b.fillRect(28, 78, 92, 1); b.fillStyle = wood[1]; [[22, 78], [112, 78]].forEach(([x, y]) => { b.fillRect(x, y, 6, 12); b.fillStyle = wood[3]; b.fillRect(x + 5, y, 1, 12); b.fillStyle = wood[1]; });
+    // mattress side with white sheet; footboard and legs go in front of everything
+    for (let x = 28; x < 112; x++) for (let y = 62; y < 71; y++) px(b, x, y, rampPick(['#fdf8ee', '#efe6d8', '#d8cdbd'], (y - 62) / 9, x, y));
+    b.fillStyle = '#e8dccb'; b.fillRect(28, 70, 84, 1);
+    for (let y = 56; y < 80; y++) for (let x = 112; x < 118; x++) px(f, x, y, rampPick(wood, 0.15 + (x - 112) / 8, x, y));
+    ell(f, 115, 56, 3.4, 3.4, wood[1]); f.fillStyle = wood[3]; f.fillRect(112, 79, 6, 1);
+  }
+  function frameBed(ms) {
+    const hour = localHour(), light = daylight(hour), night = 1 - light;
+    const lying = G.inBed && Iustina.state === 'lie', gown = Iustina.pre === 'o_';
+    const catOn = ['kitty', 'ticky'].find(id => CATS[id].state === 'cuddle') || null;
+    const sig = (lying ? 'L' : 'E') + (catOn || '') + (gown ? 'g' : 'c'); if (sig !== bedSig) { bedSig = sig; $('house-cap').textContent = lying ? 'Iustina is fast asleep' + (catOn ? ', ' + CATS[catOn].name + ' curled up on her' : '') : "Iustina's bed \u2014 all made up"; }
+    g.clearRect(0, 0, HW, HH); g.drawImage(bedBack, 0, 0);
+    drawWindow(g, 46, 8, 40, 34, ms, light);
+    const shaft = g.createLinearGradient(66, 42, 66, 80); shaft.addColorStop(0, night > 0.5 ? 'rgba(160,190,255,0.16)' : 'rgba(255,240,190,' + (0.22 * light) + ')'); shaft.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = shaft; g.beginPath(); g.moveTo(48, 44); g.lineTo(84, 44); g.lineTo(104, 80); g.lineTo(34, 80); g.fill();
+    // pillow(s)
+    const pil = (x, y, w, h) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const nx = (xx - x - w / 2) / (w / 2), ny = (yy - y - h / 2) / (h / 2), r = nx * nx * 0.5 + ny * ny; if (r < 1.1) px(g, xx, yy, rampPick(['#fffaf2', '#f0e6d8', '#d9cdbd', '#b8ab9a'], 0.15 + ny * 0.3 + nx * 0.1 + r * 0.3, xx, yy)); } g.fillStyle = '#d0c4b2'; g.fillRect(x + 3, y + h - 3, w - 6, 1); };
+    pil(30, 53, 30, 11);
+    const hair = gown ? ['#3a2a26', '#2b1d1a', '#1d1412', '#120c0a'] : ['#c46a3a', '#a14a28', '#7e3520', '#5e2718'];
+    const breathe = Math.sin(ms / 1100) * 0.7;
+    if (lying) { // Iustina on her back, hair spread over the pillow
+      ell(g, 44, 59, 12.5, 6.6, (x, y, nx, ny) => rampPick(hair, 0.3 + ny * 0.25 + nx * 0.15, x, y)); ell(g, 40, 62, 8, 3, hair[2]);
+      ell(g, 48, 57.5, 6.6, 6.2, (x, y, nx, ny) => rampPick(['#f8d9a6', '#f1c27d', '#dfa968', '#c78d52'], 0.28 + ny * 0.3 + nx * 0.12, x, y));
+      ell(g, 48, 53.4, 6.9, 3.3, (x, y, nx, ny) => rampPick(hair, 0.25 + ny * 0.25 + nx * 0.1, x, y)); g.fillStyle = hair[0]; g.fillRect(46, 51, 4, 1); g.fillStyle = hair[2]; g.fillRect(48, 51, 1, 3); // fringe parted in the middle
+      g.fillStyle = '#2b1d1a'; [[44, 57], [51, 57]].forEach(([x, y]) => { g.fillRect(x, y + 1, 4, 1); g.fillRect(x - 1, y, 1, 1); g.fillRect(x + 4, y, 1, 1); g.fillRect(x - 1, y + 2, 1, 1); });
+      g.fillStyle = gown ? '#8b1a1a' : '#e8a090'; if (gown) { g.fillRect(45, 59, 1, 6); g.fillRect(52, 59, 1, 5); } else { g.fillRect(43, 60, 2, 1); g.fillRect(54, 60, 2, 1); }
+      g.fillStyle = gown ? '#8b1a2b' : '#c0392b'; g.fillRect(47, 62, 4, 1); g.fillRect(48, 63, 2, 1); g.fillStyle = gown ? '#6e1018' : '#e66a5a'; g.fillRect(48, 62, 2, 1);
+      g.fillStyle = '#f1c27d'; g.fillRect(58, 62, 6, 2); // neck / shoulder
+    }
+    // quilt: patchwork squares with stitching, shaped over her body
+    const qc = ['#e88ca4', '#f6d27a', '#8ccaa0', '#8aa8e0', '#f2eadc'];
+    for (let x = 60; x < 112; x++) {
+      const top = lying ? 62 - 4 * gauss(x, 68, 6) - 5.5 * gauss(x, 86, 11) - 4 * gauss(x, 101, 7) - 3.5 * gauss(x, 109, 4) - breathe * gauss(x, 70, 9) : 59.5 + Math.sin(x / 9) * 0.6,
+        hem = 73 + (((x >> 2) & 1) ? 1 : 0);
+      for (let y = Math.floor(top); y <= hem; y++) {
+        const cx = Math.floor((x - 60) / 7), cy = Math.floor((y - 50) / 6), base = qc[(cx * 2 + cy * 3) % 5], v = clamp(0.15 + (y - top) / 22 + (x > 90 ? 0.1 : 0), 0, 0.99);
+        let col = rampPick([lt(base, 0.18), base, dk(base, 0.86), dk(base, 0.72)], v, x, y);
+        if ((x - 60) % 7 === 0 || (y - 50) % 6 === 0) col = dk(col, 0.82); else if (((x - 60) % 7 === 3 && (y - 50) % 6 === 3)) col = lt(col, 0.35);
+        px(g, x, y, (y <= top + 1) ? dk(col, 0.62) : col);
+      }
+      g.fillStyle = '#5d4a3a'; g.fillRect(x, hem + 1, 1, 1);
+    }
+    for (let y = 56; y <= 74; y++) px(g, 60, y, 'rgba(60,40,70,.55)'); // edge near the pillow
+    if (lying && catOn) { const k = CATS[catOn].pre === '' ? 'siamese' : 'tabby', c = renderCat(k, ms + 400); g.imageSmoothingEnabled = false; g.globalAlpha = 0.3; ell(g, 86, 57, 22, 2.6, '#000'); g.globalAlpha = 1; g.drawImage(c, 64, 36, CW * 0.8, CH * 0.8); }
+    g.drawImage(bedFront, 0, 0);
+    if (lying) for (let i = 0; i < 3; i++) { const p = ((ms / 2800) + i / 3) % 1; drawZ(g, 34 + p * 14 + Math.sin(p * 6) * 2, 50 - p * 30, p < 0.4 ? 1 : 2, Math.sin(p * Math.PI)); }
+    // lamp: warm shade + glow, with an alarm clock showing the real time
+    const fl = 0.9 + Math.sin(ms / 220) * 0.04; g.fillStyle = '#f2c46a'; g.fillRect(124, 46, 11, 9); g.fillStyle = '#ffe9a8'; g.fillRect(126, 47, 7, 7); g.fillStyle = '#c99a3c'; g.fillRect(124, 54, 11, 1); g.fillRect(124, 45, 11, 1);
+    const d = new Date(); const hh = ('0' + (isNaN(parseFloat(new URLSearchParams(location.search).get('hour'))) ? d.getHours() : Math.floor(localHour()))).slice(-2), mm = ('0' + (isNaN(parseFloat(new URLSearchParams(location.search).get('hour'))) ? d.getMinutes() : 0)).slice(-2);
+    [...(hh + mm)].forEach((ch, i) => { const gx = 140 + i * 4 + (i > 1 ? 2 : 0); [...DIG[ch]].forEach((bit, j) => { if (bit === '1') px(g, gx + (j % 3), 60 + Math.floor(j / 3), '#7af0b0'); }); }); if (Math.floor(ms / 500) % 2) { px(g, 148, 61, '#7af0b0'); px(g, 148, 63, '#7af0b0'); }
+    const lg = g.createRadialGradient(130, 50, 2, 130, 50, 70); lg.addColorStop(0, 'rgba(255,200,110,' + ((0.26 + 0.22 * night) * fl) + ')'); lg.addColorStop(1, 'rgba(255,200,110,0)'); g.fillStyle = lg; g.fillRect(0, 0, HW, HH);
+    // string lights
+    const cols = ['#ff7a7a', '#ffd36a', '#8ae0a0', '#7ac0ff', '#e89aff'];
+    for (let x = 0; x <= HW; x += 3) px(g, x, 4 + Math.sin(x / 26 * Math.PI) * 2.4 + 2, '#2b1c14');
+    for (let i = 0; i < 12; i++) { const x = 6 + i * 13.6, y = 7 + Math.sin(x / 26 * Math.PI) * 2.4, on = (Math.sin(ms / 500 + i * 1.7) + 1) / 2; px(g, x, y + 1, '#2b1c14'); g.globalAlpha = 0.25 + 0.2 * on; ell(g, x, y + 4, 4, 4, cols[i % 5]); g.globalAlpha = 0.6 + 0.4 * on; ell(g, x, y + 4, 1.6, 1.8, cols[i % 5]); g.globalAlpha = 1; }
+    motes.forEach(m => { const mx = (m.x + Math.sin(ms / 1500 + m.p) * 6 + ms * m.s * 0.004) % 100, my = m.y + Math.cos(ms / 1900 + m.p) * 5; g.globalAlpha = 0.25 + 0.3 * Math.abs(Math.sin(ms / 700 + m.p)); px(g, 30 + mx * 0.9, my, '#fff6d0'); }); g.globalAlpha = 1;
+    const vg = g.createRadialGradient(80, 52, 26, 80, 52, 112); vg.addColorStop(0, 'rgba(10,6,20,0)'); vg.addColorStop(1, 'rgba(10,6,20,' + (0.45 + 0.2 * night) + ')'); g.fillStyle = vg; g.fillRect(0, 0, HW, HH);
+    if (night > 0.2) { g.fillStyle = 'rgba(30,30,90,' + (0.1 * night) + ')'; g.fillRect(0, 0, HW, HH); }
+  }
+
   const insideId = () => ['kitty', 'ticky'].find(id => CATS[id].state === 'house') || null;
   function setup() {
     who = insideId(); catKind = who ? (CATS[who].pre === '' ? 'siamese' : 'tabby') : null; buildRoom(catKind || 'siamese');
     $('house-cap').textContent = who ? CATS[who].name + ' is having a nap' : 'The cathouse is empty \u2014 both cats are out';
   }
-  function loop(ms) { if (insideId() !== who) setup(); frame(ms); raf = requestAnimationFrame(loop); }
+  let mode = 'house';
+  function loop(ms) { if (mode === 'bed') frameBed(ms); else { if (insideId() !== who) setup(); frame(ms); } raf = requestAnimationFrame(loop); }
 
   function open() {
-    who = undefined; setup();
+    mode = 'house'; who = undefined; setup();
     openedAt = performance.now(); panel.classList.add('open'); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
   }
   function close() { panel.classList.remove('open'); cancelAnimationFrame(raf); }
-  window.openHouse = open;
+  function openBed() { mode = 'bed'; bedSig = ''; buildBedroom(); openedAt = performance.now(); panel.classList.add('open'); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
+  window.openHouse = open; window.openBedroom = openBed;
   panel.addEventListener('click', () => { if (performance.now() - openedAt > 450) close(); }); // ignore the tap that opened it
   $('house-close').addEventListener('click', e => { e.stopPropagation(); close(); });
 })();
