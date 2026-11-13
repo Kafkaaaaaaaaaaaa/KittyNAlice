@@ -132,7 +132,7 @@
       <button class="act" onclick="action('smoke')"><span class="ic">&#x1F6AC;</span>Smoke</button>
       <button class="act" id="outfit-btn"><span class="ic">&#x1F457;</span>Outfit</button>
     </div>
-    <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The one you leave goes into the cathouse. Tap the cathouse to peek in, or Iustina's house to send her home.</div>
+    <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The one you leave goes into Iustina's house. Tap the house to peek into her bedroom — the cats' basket is in there too.</div>
   </div>
 </div>
 
@@ -158,7 +158,7 @@
 const $ = id => document.getElementById(id);
 const canvas = $('c'), ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
-const W = 320, H = 180, GROUND = 150, BED_X = 262, HOUSE_X = 46;
+const W = 320, H = 180, GROUND = 150, BED_X = 262, HOUSE_X = 282; // the cats' basket is inside Iustina's house, so they use her front door
 const G = { time: 0, frame: 0, coins: 0, muted: false, particles: [], bubbles: [], bowl: null, toy: null, treats: 0, inBed: false };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const bondLevel = () => Math.floor(G.coins / 10) + 1;
@@ -819,8 +819,8 @@ function makeCat(name, pre, x0, stats0) {
         this.y = GROUND + 4; return;
       }
       if (this.state === 'outHouse') {
-        this.dir = 1; this.x += 1.2; this.y = GROUND + 4;
-        if (this.x >= HOUSE_X + 30) this.setState('idle');
+        this.dir = -1; this.x -= 1.2; this.y = GROUND + 4;
+        if (this.x <= HOUSE_X - 34) this.setState('idle');
         return;
       }
       if (this.state === 'lift' || this.state === 'drop') {
@@ -952,7 +952,7 @@ const CATS = {
   ticky: makeCat('Whatsapp', 'b_', HOUSE_X, {})
 };
 
-// Puts the active cat outside and the others in the cathouse.
+// Puts the active cat outside and the others in Iustina's house.
 function initCats() {
   for (const id of Object.keys(CATS)) {
     const c = CATS[id];
@@ -961,7 +961,7 @@ function initCats() {
   }
 }
 
-// Switches the active cat. The one leaving walks into the cathouse.
+// Switches the active cat. The one leaving walks into Iustina's house.
 function switchTo(id) {
   if (id === ACTIVE || !CATS[id]) return;
   if (G.inBed) { bubble('Come out first!', DOOR_X - 6, GROUND - 40); return; }
@@ -971,7 +971,7 @@ function switchTo(id) {
   ACTIVE = id;
   old.setState('toHouse');
   if (nu.state === 'house' || nu.state === 'toHouse') { nu.x = HOUSE_X; nu.setState('outHouse'); }
-  bubble('Hi ' + nu.name + '!', HOUSE_X + 20, GROUND - 40);
+  bubble('Hi ' + nu.name + '!', HOUSE_X - 30, GROUND - 40);
   updateUI(); save();
 }
 
@@ -1182,8 +1182,6 @@ canvas.addEventListener('pointerdown', e => {
       return;
     }
   }
-  const hs = Sprites.house;
-  if (Math.abs(x - HOUSE_X) < hs.width / 2 + 2 && y > GROUND + 4 - hs.height && y < GROUND + 8) { openHouse(); return; }
   if (x > IH_X0 - 2 && x < IH_X0 + IHW + 2 && y > IH_Y0 && y < GROUND + 8) { enterFlat(); return; }
   if (y > 115 && !Iustina.busy) Iustina.goTo(x);
 });
@@ -1205,13 +1203,10 @@ function draw() {
   ctx.drawImage(bg, 0, 0);
   ctx.fillStyle = 'rgba(150,215,100,' + (0.3 * light) + ')'; ctx.fillRect(0, 118, W, H - 118); // sunlit grass
   { const hg = ctx.createLinearGradient(0, 70, 0, 124); hg.addColorStop(0, 'rgba(150,195,240,0)'); hg.addColorStop(1, 'rgba(150,195,240,' + (0.42 * light) + ')'); ctx.fillStyle = hg; ctx.fillRect(0, 70, W, 54); } // daylight haze on the hills
-  // cathouse
-  const hs = Sprites.house;
-  ctx.drawImage(hs, Math.floor(HOUSE_X - hs.width / 2), GROUND + 4 - hs.height);
-  { // a sleepy cat inside: little z's drift up from the roof (tap the house to peek in)
+  { // a cat napping in the basket indoors: little z's drift up above the front door
     const inside = CATS[ACTIVE === 'kitty' ? 'ticky' : 'kitty'];
-    if (inside.state === 'house') { ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center';
-      for (let i = 0; i < 2; i++) { const ph = ((G.time * 0.45) + i * 0.5) % 1; ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.9; ctx.fillStyle = '#fff'; ctx.fillText(i ? 'Z' : 'z', Math.floor(HOUSE_X + 4 + ph * 12), Math.floor(GROUND + 2 - hs.height - ph * 14)); }
+    if (inside.state === 'house' && !G.inBed) { ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center';
+      for (let i = 0; i < 2; i++) { const ph = ((G.time * 0.45) + i * 0.5) % 1; ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.9; ctx.fillStyle = '#fff'; ctx.fillText(i ? 'Z' : 'z', Math.floor(DOOR_X - 22 + ph * 10), Math.floor(IH_Y0 + 13 * IHS - 4 - ph * 14)); }
       ctx.globalAlpha = 1; } }
   // Iustina's house (replaces the bed): glowing window, chimney smoke
   { ctx.drawImage(IHOUSE, IH_X0, IH_Y0);
@@ -1570,9 +1565,9 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
   }
   function frameBed(ms) {
     const hour = localHour(), light = daylight(hour), night = 1 - light;
-    const lying = G.inBed && Iustina.state === 'lie', gown = Iustina.pre === 'o_';
+    const lying = G.inBed && Iustina.state === 'lie', gown = Iustina.pre === 'o_', napper = insideId();
     const catOn = ['kitty', 'ticky'].find(id => CATS[id].state === 'cuddle') || null;
-    const sig = (lying ? 'L' : Iustina.hidden ? 'H' : 'E') + (catOn || '') + (gown ? 'g' : 'c'); if (sig !== bedSig) { bedSig = sig; $('house-cap').textContent = lying ? 'Iustina is fast asleep' + (catOn ? ', ' + CATS[catOn].name + ' curled up on her' : '') : (Iustina.hidden ? 'Iustina is home in her bedroom' : "Iustina's bed \u2014 all made up"); }
+    const sig = (lying ? 'L' : Iustina.hidden ? 'H' : 'E') + (catOn || '') + (napper || '') + (gown ? 'g' : 'c'); if (sig !== bedSig) { bedSig = sig; $('house-cap').textContent = (lying ? 'Iustina is fast asleep' + (catOn ? ', ' + CATS[catOn].name + ' curled up on her' : '') : (Iustina.hidden ? 'Iustina is home in her bedroom' : "Iustina's bed \u2014 all made up")) + (napper ? ' \u00b7 ' + CATS[napper].name + ' naps in the basket' : ' \u00b7 the cat basket is empty'); }
     g.clearRect(0, 0, HW, HH); g.drawImage(bedBack, 0, 0);
     drawWindow(g, 46, 8, 40, 34, ms, light);
     const shaft = g.createLinearGradient(66, 42, 66, 80); shaft.addColorStop(0, night > 0.5 ? 'rgba(160,190,255,0.16)' : 'rgba(255,240,190,' + (0.22 * light) + ')'); shaft.addColorStop(1, 'rgba(255,255,255,0)');
@@ -1608,10 +1603,18 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
     for (let y = 56; y <= 74; y++) px(g, 60, y, 'rgba(60,40,70,.55)'); // edge near the pillow
     if (lying && catOn) { const k = CATS[catOn].pre === '' ? 'siamese' : 'tabby', c = renderCat(k, ms + 400); g.imageSmoothingEnabled = false; g.globalAlpha = 0.25; ell(g, 88, 58, 14, 1.8, '#000'); g.globalAlpha = 1; g.drawImage(c, 72, 40 + Math.round(breathe * 0.5), Math.round(CW * 0.55), Math.round(CH * 0.55)); }
     g.drawImage(bedFront, 0, 0);
+    { // the cats' wicker basket on the floor by the bed
+      const bx = 100, by = 92, weave = (x, y) => (((x >> 1) + (y >> 1)) & 1) ? '#b98556' : '#a0724a';
+      g.globalAlpha = 0.3; ell(g, bx, by + 4, 22, 3, '#000'); g.globalAlpha = 1;
+      ell(g, bx, by, 20, 5, '#6b4a2e'); ell(g, bx, by - 1, 17, 3.6, (x, y, nx, ny) => rampPick(['#f0a8c0', '#d98aa4', '#b86c88'], 0.2 + ny * 0.3 + nx * 0.1, x, y));
+      if (napper) { const k = CATS[napper].pre === '' ? 'siamese' : 'tabby', c = renderCat(k, ms + 900); g.imageSmoothingEnabled = false; g.drawImage(c, bx - 18, 77 + Math.round(Math.sin(ms / 1100) * 0.5), Math.round(CW * 0.56), Math.round(CH * 0.56));
+        const p = ((ms / 3600)) % 1; drawZ(g, Math.round(bx + 6 + p * 10), Math.round(72 - p * 18), p < 0.5 ? 1 : 2, Math.sin(p * Math.PI)); }
+      for (let x = bx - 20; x <= bx + 20; x++) { const dy = 5 * Math.sqrt(Math.max(0, 1 - Math.pow((x - bx) / 20, 2))); for (let y = Math.round(by + dy - 1); y <= Math.round(by + dy + 2); y++) px(g, x, y, y === Math.round(by + dy + 2) ? '#6b4a2e' : weave(x, y)); }
+    }
     if (!lying && Iustina.hidden) { // she's home: standing beside the bed, swaying a little
       const spr = Sprites[Iustina.pre + 'girl_idle'], sc = 0.62, sw = spr.width * sc, sh = spr.height * sc, sway = Math.sin(ms / 900) * 0.6;
-      g.globalAlpha = 0.3; ell(g, 96, 97.5, 12, 2.4, '#000'); g.globalAlpha = 1;
-      g.imageSmoothingEnabled = false; g.drawImage(spr, Math.round(96 - sw / 2), Math.round(98 - sh + sway * 0.4), Math.round(sw), Math.round(sh));
+      g.globalAlpha = 0.3; ell(g, 62, 97.5, 12, 2.4, '#000'); g.globalAlpha = 1;
+      g.imageSmoothingEnabled = false; g.drawImage(spr, Math.round(62 - sw / 2), Math.round(98 - sh + sway * 0.4), Math.round(sw), Math.round(sh));
     }
     if (lying) for (let i = 0; i < 2; i++) { const p = ((ms / 3400) + i / 2) % 1; drawZ(g, Math.round(52 + p * 16 + Math.sin(p * 5) * 2), Math.round(47 - p * 24), p < 0.5 ? 1 : 2, Math.sin(p * Math.PI)); }
     // lamp: warm shade + glow, with an alarm clock showing the real time
