@@ -1577,14 +1577,16 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
     pil(27, 52, 36, 13);
     const hair = gown ? ['#3a2a26', '#2b1d1a', '#1d1412', '#120c0a'] : ['#c46a3a', '#a14a28', '#7e3520', '#5e2718'];
     const breathe = Math.sin(ms / 1100) * 1.0;
-    if (lying) { // Iustina on her back, hair spread over the pillow
-      ell(g, 44, 59, 12.5, 6.6, (x, y, nx, ny) => rampPick(hair, 0.3 + ny * 0.25 + nx * 0.15, x, y)); ell(g, 40, 62, 8, 3, hair[2]);
-      ell(g, 48, 57.5, 6.6, 6.2, (x, y, nx, ny) => rampPick(['#f8d9a6', '#f1c27d', '#dfa968', '#c78d52'], 0.28 + ny * 0.3 + nx * 0.12, x, y));
-      ell(g, 48, 53.4, 6.9, 3.3, (x, y, nx, ny) => rampPick(hair, 0.25 + ny * 0.25 + nx * 0.1, x, y)); g.fillStyle = hair[0]; g.fillRect(46, 51, 4, 1); g.fillStyle = hair[2]; g.fillRect(48, 51, 1, 3); // fringe parted in the middle
-      g.fillStyle = '#3a221c'; [[44, 57], [51, 57]].forEach(([x, y]) => { g.fillRect(x, y, 1, 1); g.fillRect(x + 1, y + 1, 2, 1); g.fillRect(x + 3, y, 1, 1); }); // closed, relaxed eyes
-      g.fillStyle = 'rgba(230,110,120,.55)'; g.fillRect(43, 60, 3, 1); g.fillRect(53, 60, 3, 1); // blush
-      if (gown) { g.fillStyle = '#8b1a1a'; g.fillRect(45, 59, 1, 6); g.fillRect(52, 59, 1, 5); }
-      { const inh = Math.sin(ms / 1100) > 0.2; g.fillStyle = gown ? '#8b1a2b' : '#c0392b'; g.fillRect(47, 62, 3, 1); if (inh) { g.fillStyle = gown ? '#6e1018' : '#8a2a20'; g.fillRect(48, 62, 1, 1); } }
+    if (lying) { // Iustina on her back \u2014 same blocky head as her standing sprite: flat hair cap, straight sides, square face
+      const ol = '#1c120e', hc = hair[1], R = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+      ell(g, 37, 62, 8.5, 4, hair[1]); ell(g, 36, 64, 7, 2, hair[2]); R(hair[0], 31, 60, 6, 1); // long hair spread over the pillow
+      R(ol, 43, 50, 10, 1); R(ol, 41, 51, 2, 1); R(ol, 53, 51, 2, 1); R(ol, 40, 52, 1, 11); R(ol, 55, 52, 1, 11); // outline of the head
+      R(hc, 43, 51, 10, 1); R(hc, 41, 52, 14, 12); R(hair[0], 44, 51, 6, 1); R(hair[2], 41, 62, 2, 2); R(hair[2], 53, 62, 2, 2); // hair cap, straight sides
+      R('#f1c27d', 43, 55, 10, 9); R('#dfa968', 43, 63, 10, 1); // face
+      R(hc, 43, 55, 10, 1); R(hair[2], 47, 55, 1, 1); // fringe with a centre parting
+      R('#3a221c', 44, 59, 2, 1); R('#3a221c', 50, 59, 2, 1); // closed eyes
+      g.fillStyle = 'rgba(230,110,120,.5)'; g.fillRect(44, 61, 2, 1); g.fillRect(50, 61, 2, 1); // blush
+      { const inh = Math.sin(ms / 1100) > 0.2; R(gown ? '#8b1a2b' : '#c0392b', 46, 62, 4, inh ? 2 : 1); }
     }
     // quilt: patchwork squares with stitching, shaped over her body
     const qc = ['#e88ca4', '#f6d27a', '#8ccaa0', '#8aa8e0', '#f2eadc'];
