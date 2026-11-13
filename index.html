@@ -462,37 +462,86 @@ function localHour() {
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 function daylight(h) { return smooth(5, 7.5, h) * (1 - smooth(17, 19.5, h)); } // 0 = night, 1 = full day
 (function buildBG() {
+  // tiny seeded random so the scenery looks the same every visit
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+  const mix = (c1, c2, t) => { const A = hex(c1), B = hex(c2); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',') + ')'; };
+
+  // --- sky: smooth steps with a checker-dither blend between them ---
   let b = bgSky.getContext('2d');
-  const sky = ['#0d0d1f', '#12122a', '#171736', '#1d1d42', '#242450', '#2c2c5c'];
-  sky.forEach((c, i) => { b.fillStyle = c; b.fillRect(0, i * 18, W, 19); });
-  for (let i = 0; i < 40; i++) stars.push({ x: Math.random() * W, y: Math.random() * 90, p: Math.random() * 6 });
-  // moon and sun are pre-drawn once and placed by the real clock each frame
+  const STEPS = 10, HORIZON = 118;
+  for (let y = 0; y < H; y++) {
+    const f = clamp(y / HORIZON, 0, 1) * (STEPS - 1), band = Math.floor(f), frac = f - band;
+    const c0 = mix('#0b0b1d', '#313a6e', band / (STEPS - 1)), c1 = mix('#0b0b1d', '#313a6e', Math.min(band + 1, STEPS - 1) / (STEPS - 1));
+    b.fillStyle = c0; b.fillRect(0, y, W, 1);
+    if (frac > 0.6) { b.fillStyle = c1; for (let x = (y & 1); x < W; x += 2) b.fillRect(x, y, 1, 1); }
+  }
+  for (let i = 0; i < 46; i++) stars.push({ x: Math.floor(rnd() * W), y: Math.floor(rnd() * 88), p: rnd() * 6 });
+
+  // --- moon and sun are pre-drawn once and placed by the real clock each frame ---
   b = moonImg.getContext('2d');
   b.fillStyle = '#f3ecd0';
   for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) if (dx * dx + dy * dy <= 81) b.fillRect(10 + dx, 10 + dy, 1, 1);
-  b.fillStyle = '#d8cfae'; b.fillRect(5, 7, 3, 3); b.fillRect(14, 14, 2, 2);
+  b.fillStyle = '#d8cfae'; b.fillRect(5, 7, 3, 3); b.fillRect(14, 14, 2, 2); b.fillRect(11, 4, 2, 1);
   b = sunImg.getContext('2d');
   b.fillStyle = '#ffd96b';
   for (let dy = -7; dy <= 7; dy++) for (let dx = -7; dx <= 7; dx++) if (dx * dx + dy * dy <= 49) b.fillRect(13 + dx, 13 + dy, 1, 1);
   b.fillStyle = '#fff2a8'; for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) if (dx * dx + dy * dy <= 16) b.fillRect(12 + dx, 12 + dy, 1, 1);
   b.fillStyle = '#ffe48a'; [[13, 1], [13, 24], [1, 13], [24, 13], [4, 4], [22, 4], [4, 22], [22, 22]].forEach(([x, y]) => b.fillRect(x, y, 2, 2));
+
+  // --- landscape layer ---
   b = bg.getContext('2d');
-  b.fillStyle = '#16203a';
-  for (let x = 0; x < W; x++) b.fillRect(x, 100 + Math.sin(x / 38) * 8 + Math.sin(x / 13) * 2, 1, 40);
-  const tree = (tx, th) => { b.fillStyle = '#0b1424'; b.fillRect(tx, 112 - th, 5, th + 8);
-    for (let r = 0; r < 5; r++) b.fillRect(tx - 12 + r * 2, 112 - th - 14 + r * 4, 29 - r * 4, 6); };
-  tree(18, 20); tree(64, 14); tree(236, 22); tree(292, 16);
-  b.fillStyle = '#1f3b2a'; b.fillRect(0, 118, W, H - 118);
-  b.fillStyle = '#26492f'; b.fillRect(0, 118, W, 3);
-  for (let i = 0; i < 260; i++) {
-    const x = Math.floor(Math.random() * W), y = 122 + Math.floor(Math.random() * (H - 122));
-    b.fillStyle = Math.random() < 0.5 ? '#2d5a39' : '#183122'; b.fillRect(x, y, 1, 2);
+  const hill = (base, amp1, p1, amp2, p2, off, fill, edge) => {
+    for (let x = 0; x < W; x++) {
+      const y = Math.round(base + Math.sin((x + off) / p1) * amp1 + Math.sin((x + off) / p2) * amp2);
+      b.fillStyle = fill; b.fillRect(x, y, 1, HORIZON + 8 - y);
+      b.fillStyle = edge; b.fillRect(x, y, 1, 1);
+    }
+  };
+  hill(98, 7, 44, 2, 15, 20, '#1c2a4d', '#273865');   // far hills (lighter, bluish)
+  hill(108, 6, 36, 2, 11, 90, '#142039', '#1b2c4c');  // near hills
+
+  // pine trees: stacked triangles, one clean shape
+  const pine = (tx, base, h, dark, lite) => {
+    b.fillStyle = '#2a1c18'; b.fillRect(tx - 1, base - 4, 3, 5);
+    const tiers = Math.max(3, Math.round(h / 8));
+    for (let t = 0; t < tiers; t++) {
+      const ty = base - 4 - h + Math.round(t * (h - 6) / tiers), w = 3 + Math.round(t * (h / 2.4) / tiers) + 1;
+      for (let r = 0; r < Math.round((h - 6) / tiers) + 4; r++) {
+        const rw = Math.min(w + Math.floor(r * 0.9), w + 6) , yy = ty + r;
+        if (yy > base - 4) break;
+        b.fillStyle = dark; b.fillRect(tx - rw, yy, rw * 2 + 1, 1);
+        b.fillStyle = lite; b.fillRect(tx - rw, yy, 1, 1);
+      }
+    }
+  };
+  pine(30, HORIZON + 2, 30, '#0d1a30', '#16294a'); pine(78, HORIZON, 22, '#0f1d34', '#182c4d');
+  pine(232, HORIZON + 2, 34, '#0d1a30', '#16294a'); pine(286, HORIZON, 26, '#0f1d34', '#182c4d');
+
+  // --- grass: gentle mowed stripes, no noise ---
+  b.fillStyle = '#244a33'; b.fillRect(0, HORIZON, W, H - HORIZON);
+  for (let i = 0, y = HORIZON + 2; y < H; i++) { const hgt = 5 + Math.floor(i * 1.2); b.fillStyle = i % 2 ? '#214230' : '#27503a'; b.fillRect(0, y, W, hgt); y += hgt * 2; }
+  b.fillStyle = '#2f5f40'; b.fillRect(0, HORIZON, W, 2); // lit grass edge under the fence
+  b.fillStyle = '#1b3727'; b.fillRect(0, HORIZON + 2, W, 1);
+
+  // --- fence: two rails, even posts with pointed tops ---
+  b.fillStyle = '#3b2a22'; b.fillRect(0, 110, W, 3); b.fillRect(0, 117, W, 3);
+  b.fillStyle = '#5b4333'; b.fillRect(0, 110, W, 1); b.fillRect(0, 117, W, 1);
+  for (let x = 6; x < W; x += 16) {
+    b.fillStyle = '#4a3528'; b.fillRect(x, 105, 4, 19);
+    b.fillStyle = '#5b4333'; b.fillRect(x, 105, 1, 19); b.fillRect(x + 1, 104, 2, 1);
+    b.fillStyle = '#2d201a'; b.fillRect(x + 3, 105, 1, 19);
+    b.fillStyle = 'rgba(0,0,0,.18)'; b.fillRect(x - 1, 124, 6, 2);
   }
-  for (let i = 0; i < 14; i++) { b.fillStyle = ['#e8cfa6', '#d95763', '#e9a8c9'][i % 3]; b.fillRect(Math.floor(Math.random() * W), 126 + Math.floor(Math.random() * 50), 2, 2); }
-  for (let i = 0; i < 8; i++) { b.fillStyle = '#b8782b'; b.fillRect(Math.floor(Math.random() * W), 130 + Math.floor(Math.random() * 45), 3, 2); }
-  b.fillStyle = '#3a2a22';
-  for (let x = 0; x < W; x += 12) b.fillRect(x, 106, 4, 18);
-  b.fillRect(0, 111, W, 2); b.fillRect(0, 118, W, 2);
+
+  // --- small foreground details: tufts and a few flower clusters ---
+  for (let i = 0; i < 26; i++) {
+    const x = 4 + Math.floor(rnd() * (W - 8)), y = 130 + Math.floor(rnd() * (H - 134));
+    b.fillStyle = '#356c47'; b.fillRect(x, y, 1, 1); b.fillRect(x - 2, y, 1, 1); b.fillRect(x + 2, y, 1, 1); b.fillRect(x - 1, y - 1, 1, 1); b.fillRect(x + 1, y - 1, 1, 1);
+    b.fillStyle = '#1b3727'; b.fillRect(x - 1, y + 1, 3, 1);
+  }
+  [[24, 168, '#f0e4c8'], [96, 172, '#e9a8c9'], [150, 166, '#f4d36a'], [208, 170, '#f0e4c8'], [300, 164, '#e9a8c9'], [128, 134, '#f4d36a'], [196, 136, '#e9a8c9'], [14, 140, '#f0e4c8']]
+    .forEach(([x, y, c]) => { b.fillStyle = '#2a5a3a'; b.fillRect(x, y + 1, 1, 3); b.fillStyle = c; b.fillRect(x - 1, y, 3, 1); b.fillRect(x, y - 1, 1, 3); b.fillStyle = '#f4d36a'; b.fillRect(x, y, 1, 1); });
 })();
 
 // ===== IUSTINA =====
@@ -1074,7 +1123,7 @@ function draw() {
   ctx.drawImage(bgSky, 0, 0);
   stars.forEach(s => { const a = (0.35 + 0.65 * Math.abs(Math.sin(G.time * 1.5 + s.p))) * (1 - light * 0.9);
     ctx.fillStyle = 'rgba(255,255,230,' + a + ')'; ctx.fillRect(Math.floor(s.x), Math.floor(s.y), 1, 1); });
-  ctx.fillStyle = 'rgba(130,180,235,' + (0.6 * light) + ')'; ctx.fillRect(0, 0, W, 118);
+  { const sg = ctx.createLinearGradient(0, 0, 0, 118); sg.addColorStop(0, 'rgba(80,150,235,' + (0.9 * light) + ')'); sg.addColorStop(1, 'rgba(175,220,250,' + (0.95 * light) + ')'); ctx.fillStyle = sg; ctx.fillRect(0, 0, W, 118); }
   // sun rises in the east and sets in the west; the moon is out at night
   const st = clamp((hour - 5.5) / 13, 0, 1);
   if (light > 0.02) { ctx.globalAlpha = clamp(light * 2, 0, 1); ctx.drawImage(sunImg, Math.floor(20 + st * 280 - 13), Math.floor(98 - Math.sin(Math.PI * st) * 78 - 13)); ctx.globalAlpha = 1; }
@@ -1084,7 +1133,7 @@ function draw() {
   if (glow > 0.05 && light > 0.001) { const gr = ctx.createLinearGradient(0, 30, 0, 118); gr.addColorStop(0, 'rgba(255,150,90,0)'); gr.addColorStop(1, 'rgba(255,140,80,' + (0.38 * glow) + ')'); ctx.fillStyle = gr; ctx.fillRect(0, 30, W, 88); }
   ctx.drawImage(bg, 0, 0);
   ctx.fillStyle = 'rgba(150,215,100,' + (0.3 * light) + ')'; ctx.fillRect(0, 118, W, H - 118); // sunlit grass
-  ctx.fillStyle = 'rgba(255,255,255,' + (0.1 * light) + ')'; ctx.fillRect(0, 100, W, 18);
+  { const hg = ctx.createLinearGradient(0, 70, 0, 124); hg.addColorStop(0, 'rgba(150,195,240,0)'); hg.addColorStop(1, 'rgba(150,195,240,' + (0.42 * light) + ')'); ctx.fillStyle = hg; ctx.fillRect(0, 70, W, 54); } // daylight haze on the hills
   // cathouse
   const hs = Sprites.house;
   ctx.drawImage(hs, Math.floor(HOUSE_X - hs.width / 2), GROUND + 4 - hs.height);
