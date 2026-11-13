@@ -1574,9 +1574,9 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
     g.fillStyle = shaft; g.beginPath(); g.moveTo(48, 44); g.lineTo(84, 44); g.lineTo(104, 80); g.lineTo(34, 80); g.fill();
     // pillow(s)
     const pil = (x, y, w, h) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const nx = (xx - x - w / 2) / (w / 2), ny = (yy - y - h / 2) / (h / 2), r = nx * nx * 0.5 + ny * ny; if (r < 1.1) px(g, xx, yy, rampPick(['#fffaf2', '#f0e6d8', '#d9cdbd', '#b8ab9a'], 0.15 + ny * 0.3 + nx * 0.1 + r * 0.3, xx, yy)); } g.fillStyle = '#d0c4b2'; g.fillRect(x + 3, y + h - 3, w - 6, 1); };
-    pil(30, 53, 30, 11);
+    pil(27, 52, 36, 13);
     const hair = gown ? ['#3a2a26', '#2b1d1a', '#1d1412', '#120c0a'] : ['#c46a3a', '#a14a28', '#7e3520', '#5e2718'];
-    const breathe = Math.sin(ms / 1100) * 0.7;
+    const breathe = Math.sin(ms / 1100) * 1.0;
     if (lying) { // Iustina on her back, hair spread over the pillow
       ell(g, 44, 59, 12.5, 6.6, (x, y, nx, ny) => rampPick(hair, 0.3 + ny * 0.25 + nx * 0.15, x, y)); ell(g, 40, 62, 8, 3, hair[2]);
       ell(g, 48, 57.5, 6.6, 6.2, (x, y, nx, ny) => rampPick(['#f8d9a6', '#f1c27d', '#dfa968', '#c78d52'], 0.28 + ny * 0.3 + nx * 0.12, x, y));
@@ -1585,30 +1585,31 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
       g.fillStyle = 'rgba(230,110,120,.55)'; g.fillRect(43, 60, 3, 1); g.fillRect(53, 60, 3, 1); // blush
       if (gown) { g.fillStyle = '#8b1a1a'; g.fillRect(45, 59, 1, 6); g.fillRect(52, 59, 1, 5); }
       { const inh = Math.sin(ms / 1100) > 0.2; g.fillStyle = gown ? '#8b1a2b' : '#c0392b'; g.fillRect(47, 62, 3, 1); if (inh) { g.fillStyle = gown ? '#6e1018' : '#8a2a20'; g.fillRect(48, 62, 1, 1); } }
-      g.fillStyle = '#f1c27d'; g.fillRect(58, 62, 6, 2); // neck / shoulder
     }
     // quilt: patchwork squares with stitching, shaped over her body
     const qc = ['#e88ca4', '#f6d27a', '#8ccaa0', '#8aa8e0', '#f2eadc'];
-    for (let x = 60; x < 112; x++) {
-      const top = lying ? 62 - 4 * gauss(x, 68, 6) - 5.5 * gauss(x, 86, 11) - 4 * gauss(x, 101, 7) - 3.5 * gauss(x, 109, 4) - breathe * gauss(x, 70, 9) : 59.5 + Math.sin(x / 9) * 0.6,
+    for (let x = lying ? 55 : 60; x < 112; x++) {
+      const top = lying ? 62.5 - 5 * gauss(x, 62, 4.5) - 4 * gauss(x, 84, 9) - 5 * gauss(x, 98, 7) - 3 * gauss(x, 109, 4) - breathe * gauss(x, 65, 6) : 59.5 + Math.sin(x / 9) * 0.6,
         hem = 73 + (((x >> 2) & 1) ? 1 : 0);
       for (let y = Math.floor(top); y <= hem; y++) {
-        const cx = Math.floor((x - 60) / 7), cy = Math.floor((y - 50) / 6), base = qc[(cx * 2 + cy * 3) % 5], v = clamp(0.15 + (y - top) / 22 + (x > 90 ? 0.1 : 0), 0, 0.99);
+        const qx = lying ? 55 : 60, cx = Math.floor((x - qx) / 7), cy = Math.floor((y - 50) / 6), base = qc[(cx * 2 + cy * 3) % 5], v = clamp(0.15 + (y - top) / 22 + (x > 90 ? 0.1 : 0), 0, 0.99);
         let col = rampPick([lt(base, 0.18), base, dk(base, 0.86), dk(base, 0.72)], v, x, y);
-        if ((x - 60) % 7 === 0 || (y - 50) % 6 === 0) col = dk(col, 0.82); else if (((x - 60) % 7 === 3 && (y - 50) % 6 === 3)) col = lt(col, 0.35);
+        if ((x - qx) % 7 === 0 || (y - 50) % 6 === 0) col = dk(col, 0.82); else if (((x - qx) % 7 === 3 && (y - 50) % 6 === 3)) col = lt(col, 0.35);
+        if (lying && x <= 68 && y <= top + 3.4 && y > top + 0.4) col = rampPick(['#fffaf2', '#f0e6d8', '#d9cdbd'], (y - top) / 4, x, y); // turned-down sheet
         px(g, x, y, (y <= top + 1) ? dk(col, 0.62) : col);
       }
       g.fillStyle = '#5d4a3a'; g.fillRect(x, hem + 1, 1, 1);
     }
-    for (let y = 56; y <= 74; y++) px(g, 60, y, 'rgba(60,40,70,.55)'); // edge near the pillow
-    if (lying && catOn) { const k = CATS[catOn].pre === '' ? 'siamese' : 'tabby', c = renderCat(k, ms + 400); g.imageSmoothingEnabled = false; g.globalAlpha = 0.25; ell(g, 88, 58, 14, 1.8, '#000'); g.globalAlpha = 1; g.drawImage(c, 72, 40 + Math.round(breathe * 0.5), Math.round(CW * 0.55), Math.round(CH * 0.55)); }
+    if (!lying) for (let y = 56; y <= 74; y++) px(g, 60, y, 'rgba(60,40,70,.55)'); // edge near the pillow
+    if (lying) { g.fillStyle = '#e9b777'; g.fillRect(56, 58, 4, 3); g.fillStyle = '#c78d52'; g.fillRect(56, 60, 4, 1); g.fillRect(59, 58, 1, 1); } // hand tucked up by her chin
+    if (lying && catOn) { const k = CATS[catOn].pre === '' ? 'siamese' : 'tabby', c = renderCat(k, ms + 400); g.imageSmoothingEnabled = false; g.globalAlpha = 0.25; ell(g, 90, 60, 14, 1.8, '#000'); g.globalAlpha = 1; g.drawImage(c, 74, 41 + Math.round(breathe * 0.5), Math.round(CW * 0.55), Math.round(CH * 0.55)); }
     g.drawImage(bedFront, 0, 0);
     { // the cats' wicker basket on the floor by the bed
       const bx = 100, by = 92, weave = (x, y) => (((x >> 1) + (y >> 1)) & 1) ? '#b98556' : '#a0724a';
       g.globalAlpha = 0.3; ell(g, bx, by + 4, 22, 3, '#000'); g.globalAlpha = 1;
       ell(g, bx, by, 20, 5, '#6b4a2e'); ell(g, bx, by - 1, 17, 3.6, (x, y, nx, ny) => rampPick(['#f0a8c0', '#d98aa4', '#b86c88'], 0.2 + ny * 0.3 + nx * 0.1, x, y));
       if (napper) { const k = CATS[napper].pre === '' ? 'siamese' : 'tabby', c = renderCat(k, ms + 900); g.imageSmoothingEnabled = false; g.drawImage(c, bx - 18, 77 + Math.round(Math.sin(ms / 1100) * 0.5), Math.round(CW * 0.56), Math.round(CH * 0.56));
-        const p = ((ms / 3600)) % 1; drawZ(g, Math.round(bx + 6 + p * 10), Math.round(72 - p * 18), p < 0.5 ? 1 : 2, Math.sin(p * Math.PI)); }
+}
       for (let x = bx - 20; x <= bx + 20; x++) { const dy = 5 * Math.sqrt(Math.max(0, 1 - Math.pow((x - bx) / 20, 2))); for (let y = Math.round(by + dy - 1); y <= Math.round(by + dy + 2); y++) px(g, x, y, y === Math.round(by + dy + 2) ? '#6b4a2e' : weave(x, y)); }
     }
     if (!lying && Iustina.hidden) { // she's home: standing beside the bed, swaying a little
