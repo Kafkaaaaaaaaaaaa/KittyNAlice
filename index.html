@@ -66,6 +66,12 @@
   }
 
   /* Outfit sheet */
+  #house-panel { position:fixed; inset:0; background:rgba(8,6,14,.88); display:none; align-items:center; justify-content:center; z-index:30; padding:12px; }
+  #house-panel.open { display:flex; }
+  #house-panel .hp { width:100%; max-width:min(720px, 100%); display:flex; flex-direction:column; gap:10px; align-items:center; }
+  #hc { width:100%; max-width:min(720px, calc((100dvh - 120px) * 1.6)); aspect-ratio:16/10; image-rendering:pixelated; border:3px solid #3b2a1e; border-radius:10px; background:#241a13; box-shadow:0 8px 30px rgba(0,0,0,.6); }
+  #house-cap { font-size:13px; font-weight:700; color:var(--text); letter-spacing:.04em; }
+  #house-close { min-height:44px; padding:0 22px; border:0; border-radius:12px; background:var(--accent); color:var(--ink); font-weight:800; font-size:14px; cursor:pointer; }
   #outfit-panel { position:fixed; inset:0; background:rgba(10,8,16,.8); display:none; align-items:flex-end; justify-content:center; z-index:20; }
   #outfit-panel.open { display:flex; }
   #outfit-panel .op { width:100%; max-width:520px; max-height:92vh; max-height:92dvh; overflow:auto; background:var(--panel); border:1px solid var(--line);
@@ -126,7 +132,15 @@
       <button class="act" onclick="action('smoke')"><span class="ic">&#x1F6AC;</span>Smoke</button>
       <button class="act" id="outfit-btn"><span class="ic">&#x1F457;</span>Outfit</button>
     </div>
-    <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The one you leave goes into the cathouse.</div>
+    <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The one you leave goes into the cathouse. Tap the cathouse to peek inside.</div>
+  </div>
+</div>
+
+<div id="house-panel">
+  <div class="hp">
+    <canvas id="hc" width="160" height="100"></canvas>
+    <div id="house-cap">Napping</div>
+    <button id="house-close">Close</button>
   </div>
 </div>
 
@@ -1135,6 +1149,8 @@ canvas.addEventListener('pointerdown', e => {
       return;
     }
   }
+  const hs = Sprites.house;
+  if (Math.abs(x - HOUSE_X) < hs.width / 2 + 2 && y > GROUND + 4 - hs.height && y < GROUND + 8) { openHouse(); return; }
   if (y > 115 && !Iustina.busy) Iustina.goTo(x);
 });
 
@@ -1158,6 +1174,11 @@ function draw() {
   // cathouse
   const hs = Sprites.house;
   ctx.drawImage(hs, Math.floor(HOUSE_X - hs.width / 2), GROUND + 4 - hs.height);
+  { // a sleepy cat inside: little z's drift up from the roof (tap the house to peek in)
+    const inside = CATS[ACTIVE === 'kitty' ? 'ticky' : 'kitty'];
+    if (inside.state === 'house') { ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center';
+      for (let i = 0; i < 2; i++) { const ph = ((G.time * 0.45) + i * 0.5) % 1; ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.9; ctx.fillStyle = '#fff'; ctx.fillText(i ? 'Z' : 'z', Math.floor(HOUSE_X + 4 + ph * 12), Math.floor(GROUND + 2 - hs.height - ph * 14)); }
+      ctx.globalAlpha = 1; } }
   // bed
   { const bx = BED_X;
     ctx.fillStyle = '#3a2a22'; ctx.fillRect(bx - 36, GROUND - 22, 4, 28);
@@ -1242,6 +1263,220 @@ if (!OUTFITS.some(o => o.id === OUTFIT)) OUTFIT = 'casual';
 Iustina.pre = OUTFITS.find(o => o.id === OUTFIT).pre;
 
 bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
+// ===== INSIDE THE CATHOUSE: tap the house to peek at the napping cat =====
+(function houseView() {
+  const panel = $('house-panel'), hc = $('hc'), g = hc.getContext('2d');
+  const HW = 160, HH = 100;
+  let raf = 0, who = 'kitty', openedAt = 0;
+
+  // ---------- tiny colour helpers ----------
+  const cache = {};
+  const rgb = h => cache[h] || (cache[h] = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  const toHex = a => '#' + a.map(v => ('0' + clamp(Math.round(v), 0, 255).toString(16)).slice(-2)).join('');
+  const dk = (h, f) => toHex(rgb(h).map(v => v * f));
+  const lt = (h, f) => toHex(rgb(h).map(v => v + (255 - v) * f));
+  const mixc = (a, b, t) => { const A = rgb(a), B = rgb(b); return toHex(A.map((v, i) => v + (B[i] - v) * t)); };
+  const rampPick = (r, v, x, y) => r[clamp(Math.floor((v + (((x + y) & 1) ? 0.05 : -0.05)) * r.length), 0, r.length - 1)];
+  const px = (c, x, y, col, w = 1, h = 1) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), w, h); };
+  const ell = (c, cx, cy, rx, ry, col) => { for (let y = Math.floor(cy - ry); y <= cy + ry; y++) for (let x = Math.floor(cx - rx); x <= cx + rx; x++) { const nx = (x + 0.5 - cx) / rx, ny = (y + 0.5 - cy) / ry; if (nx * nx + ny * ny <= 1) px(c, x, y, typeof col === 'function' ? col(x, y, nx, ny) : col); } };
+
+  // ---------- the detailed napping cat (drawn per frame so it can breathe) ----------
+  const CW = 64, CH = 36;
+  const KINDS = {
+    siamese: { out: '#2b1b1c', body: ['#f4dcb4', '#e6c595', '#d2a672', '#b88858'], pts: ['#86604f', '#6a4638', '#52352c', '#3a2620'], pink: '#d99a90', blush: '#e8a89a', whisk: '#f4ece4' },
+    tabby: { out: '#2c1b12', body: ['#d2a672', '#b5844f', '#966337', '#774a28'], light: ['#f1e2c8', '#e0c9a6', '#c4a47c', '#a58562'], stripe: '#40281a', pink: '#d98a7c', blush: '#e29a88', whisk: '#f6efe6' }
+  };
+  function renderCat(kind, ms) {
+    const K = KINDS[kind], buf = new Array(CW * CH).fill(null);
+    const br = Math.sin(ms / 1100) * 0.8, tw = Math.sin(ms / 700);
+    const shape = (test, colorFn, edge = 0.62) => {
+      for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) {
+        const X = x + 0.5, Y = y + 0.5; if (!test(X, Y)) continue;
+        let col = colorFn(X, Y);
+        if (!(test(X - 1, Y) && test(X + 1, Y) && test(X, Y - 1) && test(X, Y + 1))) col = dk(col, edge);
+        buf[y * CW + x] = col;
+      }
+    };
+    const inEll = (cx, cy, rx, ry) => (X, Y) => ((X - cx) / rx) ** 2 + ((Y - cy) / ry) ** 2 <= 1;
+    const inTri = (a, b, c) => (X, Y) => { const s = (p, q, r) => (p[0] - r[0]) * (q[1] - r[1]) - (q[0] - r[0]) * (p[1] - r[1]); const p = [X, Y], d1 = s(p, a, b), d2 = s(p, b, c), d3 = s(p, c, a); return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0)); };
+    const siam = kind === 'siamese';
+
+    // body (a big fluffy bean)
+    const bcx = 36, bcy = 22 - br * 0.3, brx = 25, bry = 12.4 + br;
+    const body = inEll(bcx, bcy, brx, bry);
+    shape(body, (X, Y) => {
+      const v = 0.36 + 0.34 * ((Y - bcy) / bry) + 0.16 * ((X - bcx) / brx);
+      if (siam) { // cream body, slightly toasted along the back
+        const back = clamp(0.35 - (Y - (bcy - bry)) / 14, 0, 0.35);
+        return rampPick(K.body, clamp(v + 0.18 - back * 0.4, 0, 0.99), X, Y);
+      }
+      const belly = (Y - bcy) / bry > 0.45;
+      if (belly) return rampPick(K.light, clamp(v - 0.15, 0, 0.99), X, Y);
+      const st = (Math.floor(X + (Y - bcy) * 0.45) % 6 + 6) % 6 === 0 && Y < bcy + bry * 0.55 && X > 24;
+      return st ? rampPick([K.stripe, dk(K.stripe, 0.8)], v, X, Y) : rampPick(K.body, clamp(v, 0, 0.99), X, Y);
+    }, 0.7);
+
+    // fluffy chest tuft under the head
+    shape(inEll(23, 27.5, 6, 4.2), (X, Y) => rampPick(siam ? K.body : K.light, 0.3 + 0.3 * ((Y - 27) / 4), X, Y), 0.75);
+
+    // tail curling around the front, tip twitching
+    const tail = [];
+    for (let i = 0; i <= 26; i++) { const th = 0.18 + (i / 26) * 2.55, tx = 36 + Math.cos(th) * 24 * 0.96, ty = 26 + Math.sin(th) * 6.4 + (i > 21 ? tw * 0.9 : 0); tail.push([tx, ty, i]); }
+    const tailTest = (X, Y) => tail.some(([tx, ty, i]) => (X - tx) ** 2 + (Y - ty) ** 2 <= (i > 22 ? 2.3 : 3.4));
+    shape(tailTest, (X, Y) => {
+      let near = tail[0], bd = 1e9; for (const t of tail) { const d = (X - t[0]) ** 2 + (Y - t[1]) ** 2; if (d < bd) { bd = d; near = t; } }
+      const v = 0.35 + 0.35 * clamp((Y - near[1]) / 3, -1, 1) * -1 + 0.25;
+      if (siam) return rampPick(K.pts, clamp(v, 0, 0.99), X, Y);
+      return (near[2] % 5 < 2 || near[2] > 22) ? rampPick([K.stripe, dk(K.stripe, 0.8)], v, X, Y) : rampPick(K.body, clamp(v, 0, 0.99), X, Y);
+    }, 0.7);
+
+    // head resting low, slightly tilted
+    const hcx = 15, hcy = 22 + br * 0.4, hrx = 10.2, hry = 8.6;
+    // ears (behind the head)
+    const earL = inTri([7.2, hcy - 4], [8.8, hcy - 15.5], [14.6, hcy - 7.6]), earR = inTri([16.2, hcy - 7.8], [22.8, hcy - 15.5], [24.6, hcy - 3.8]);
+    const earCol = (X, Y) => siam ? rampPick(K.pts, 0.3 + (Y - (hcy - 15)) / 24, X, Y) : rampPick(K.body, 0.35 + (Y - (hcy - 15)) / 24, X, Y);
+    shape(earL, earCol, 0.6); shape(earR, earCol, 0.6);
+    shape(inTri([9.4, hcy - 6.4], [9.9, hcy - 12], [13.2, hcy - 8]), () => K.pink, 0.85);
+    shape(inTri([17, hcy - 8], [21.4, hcy - 12.2], [22.4, hcy - 6.2]), () => K.pink, 0.85);
+    const head = inEll(hcx, hcy, hrx, hry);
+    shape(head, (X, Y) => {
+      const v = 0.3 + 0.3 * ((Y - hcy) / hry) + 0.14 * ((X - hcx) / hrx);
+      if (siam) { const m = ((X - 14.8) / 6.9) ** 2 + ((Y - (hcy + 1.2)) / 6.4) ** 2; return m < 1 ? rampPick(K.pts, clamp(v + 0.12 + m * 0.15, 0, 0.99), X, Y) : rampPick(K.body, clamp(v, 0, 0.99), X, Y); }
+      const muz = ((X - 15.2) / 4.6) ** 2 + ((Y - (hcy + 3.6)) / 3.2) ** 2 < 1;
+      if (muz) return rampPick(K.light, clamp(v - 0.1, 0, 0.99), X, Y);
+      const fx = Math.floor(X), fy = Math.floor(Y);
+      const stripe = (fy >= hcy - 8 && fy <= hcy - 3 && [12, 14, 16, 18].includes(fx)) || (fy >= hcy - 1 && fy <= hcy + 1 && (fx <= 7 || fx >= 23) && (fy + fx) % 2 === 0);
+      return stripe ? K.stripe : rampPick(K.body, clamp(v, 0, 0.99), X, Y);
+    }, 0.68);
+    // front paws tucked under the chin
+    const paw = (cx, cy) => { shape(inEll(cx, cy, 4.6, 2.9), (X, Y) => siam ? rampPick(K.pts, 0.25 + 0.4 * ((Y - cy) / 3), X, Y) : rampPick(K.light, 0.2 + 0.4 * ((Y - cy) / 3), X, Y), 0.65); };
+    paw(11.5, 30.4); paw(19.6, 31.2);
+
+    // flatten buffer to a canvas, add the outer outline
+    const out = document.createElement('canvas'); out.width = CW; out.height = CH; const o = out.getContext('2d');
+    for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) if (buf[y * CW + x]) px(o, x, y, buf[y * CW + x]);
+    for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) if (!buf[y * CW + x]) {
+      const n = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => buf[(y + dy) * CW + x + dx] && x + dx >= 0 && x + dx < CW && y + dy >= 0 && y + dy < CH);
+      if (n) px(o, x, y, K.out);
+    }
+    // sleepy face: closed eyes, little nose and mouth, blush, whiskers
+    const eyeC = siam ? '#241618' : '#1f1410';
+    [[11, hcy], [18.5, hcy]].forEach(([ex, ey]) => { px(o, ex - 1, ey, eyeC); px(o, ex, ey + 1, eyeC); px(o, ex + 1, ey + 1, eyeC); px(o, ex + 2, ey, eyeC); if (siam) px(o, ex, ey + 2, '#5fb6d4'); else px(o, ex, ey + 2, '#8aa65a'); });
+    px(o, 14.5, hcy + 3.4, K.pink, 2, 1); px(o, 15, hcy + 4.4, dk(K.pink, 0.8)); px(o, 13.6, hcy + 5.4, '#4a2e2a'); px(o, 16.4, hcy + 5.4, '#4a2e2a'); px(o, 14.6, hcy + 5.9, '#4a2e2a', 2, 1);
+    px(o, 8, hcy + 3, K.blush, 2, 1); px(o, 21.5, hcy + 3, K.blush, 2, 1);
+    o.globalAlpha = 0.8; [[-1, 5], [0, 4], [1, 5]].forEach(([i, x0]) => { px(o, x0 - 0.5, hcy + 4.5 + i * 1.6, K.whisk, 2, 1); px(o, 25.5, hcy + 4.5 + i * 1.6, K.whisk, 2, 1); }); o.globalAlpha = 1;
+    return out;
+  }
+
+  // ---------- room (static layers, built once per open) ----------
+  let backL, frontL, catKind;
+  function buildRoom(kind) {
+    const mk = () => { const c = document.createElement('canvas'); c.width = HW; c.height = HH; return c; };
+    backL = mk(); frontL = mk(); const b = backL.getContext('2d'), f = frontL.getContext('2d'), siam = kind === 'siamese';
+    // wood-panelled wall
+    for (let x = 0; x < HW; x += 10) { b.fillStyle = (x / 10) % 2 ? '#6a4a33' : '#715038'; b.fillRect(x, 0, 10, 66); b.fillStyle = '#4e3524'; b.fillRect(x, 0, 1, 66); b.fillStyle = '#82603f'; b.fillRect(x + 1, 0, 1, 66);
+      for (let k = 0; k < 7; k++) { const gx = x + 2 + ((k * 5) % 7), gy = (k * 29 + x * 3) % 62; b.fillStyle = '#5a3f2b'; b.fillRect(gx, gy, 1, 5); } }
+    b.fillStyle = '#3d2a1d'; b.fillRect(0, 62, HW, 4); b.fillStyle = '#8b6a48'; b.fillRect(0, 62, HW, 1); // baseboard
+    // floor
+    for (let y = 66; y < HH; y += 8) { b.fillStyle = ((y - 66) / 8) % 2 ? '#8a6240' : '#7e5938'; b.fillRect(0, y, HW, 8); b.fillStyle = '#5c3f28'; b.fillRect(0, y, HW, 1);
+      for (let x = ((y * 7) % 23); x < HW; x += 31) { b.fillStyle = '#5c3f28'; b.fillRect(x, y, 1, 8); } }
+    // woven oval rug
+    const ring = ['#d8c3a0', '#a4543f', '#d8c3a0', '#3f7a78', '#d8c3a0'];
+    ring.forEach((c, i) => ell(b, 82, 85, 66 - i * 5.2, 14 - i * 1.15, c));
+    ell(b, 82, 85, 38, 7.2, '#6a4a7a');
+    for (let x = 18; x < 148; x += 4) { b.fillStyle = '#c8a77f'; b.fillRect(x, 98, 1, 2); b.fillRect(x + 1, 71, 1, 1); } // tassel specks
+    // shelf, books, plant, lantern, frame
+    b.fillStyle = '#3d2a1d'; b.fillRect(110, 34, 46, 4); b.fillStyle = '#8b6a48'; b.fillRect(110, 34, 46, 1); b.fillStyle = '#2e1f15'; b.fillRect(114, 38, 2, 4); b.fillRect(150, 38, 2, 4);
+    [['#a4443f', 12], ['#3f6f8a', 10], ['#d9a441', 9], ['#6a4a8a', 11]].reduce((x, [c, h]) => { b.fillStyle = c; b.fillRect(x, 34 - h, 5, h); b.fillStyle = lt(c, 0.35); b.fillRect(x, 34 - h, 1, h); b.fillStyle = dk(c, 0.7); b.fillRect(x + 4, 34 - h, 1, h); b.fillStyle = '#f0e2c0'; b.fillRect(x + 1, 34 - h + 3, 3, 1); return x + 6; }, 113);
+    b.fillStyle = '#b5673f'; b.fillRect(140, 28, 8, 6); b.fillStyle = '#d98a5c'; b.fillRect(140, 28, 8, 1); b.fillStyle = '#3d7a4a'; [[142, 22], [144, 20], [146, 23], [143, 25], [147, 26]].forEach(([x, y]) => b.fillRect(x, y, 2, 6)); b.fillStyle = '#5da86a'; [[142, 22], [144, 20], [146, 23]].forEach(([x, y]) => b.fillRect(x, y, 1, 3));
+    b.fillStyle = '#4a3220'; b.fillRect(116, 8, 26, 20); b.fillStyle = '#e8dcc0'; b.fillRect(118, 10, 22, 16); // frame: a tiny fish painting
+    b.fillStyle = '#7fb3c9'; b.fillRect(118, 10, 22, 16); b.fillStyle = '#f0a060'; ell(b, 129, 18, 5, 3, '#f0a060'); b.fillStyle = '#f0a060'; b.fillRect(134, 16, 3, 4); b.fillStyle = '#1b2430'; b.fillRect(125, 17, 1, 1);
+    // food and water bowls
+    ell(b, 18, 91, 7, 2.6, '#c9c2b6'); ell(b, 18, 90, 6, 2, '#6aa8d8'); ell(b, 34, 93, 7, 2.6, '#c9c2b6'); ell(b, 34, 92, 6, 2, '#b5764a'); for (let i = 0; i < 6; i++) px(b, 30 + i, 91 + (i % 2), '#d9a06a');
+    // yarn ball + trailing thread, toy mouse
+    ell(b, 130, 91, 6, 5.5, (x, y, nx, ny) => ((x + y) % 4 < 2 ? '#d85a6a' : '#b8404f')); ell(b, 128, 89, 2, 1.4, '#f08a96');
+    b.strokeStyle = '#d85a6a'; b.lineWidth = 1; b.beginPath(); b.moveTo(124, 93); b.bezierCurveTo(116, 98, 112, 90, 106, 95); b.stroke();
+    ell(b, 150, 80, 4, 2.4, '#b9b3ab'); px(b, 153, 78, '#d98a8a', 2, 2); px(b, 154, 79, '#1b1b1b'); b.fillStyle = '#d98a8a'; b.fillRect(145, 80, 1, 1); b.fillRect(143, 81, 3, 1);
+    // cushion bed: back rim + soft body
+    const cc = siam ? ['#8fc9c4', '#5fa09c', '#417a77', '#2f5c5a'] : ['#e39a78', '#c9704f', '#a4543b', '#7c3d2a'];
+    ell(b, 82, 79, 59, 13.5, cc[3]); ell(b, 82, 80, 57, 12, cc[2]); ell(b, 82, 82, 52, 9.5, (x, y, nx, ny) => rampPick([cc[1], cc[2], cc[1], cc[0]], clamp(0.5 + nx * 0.18 - ny * 0.4, 0, 0.99), x, y));
+    for (let a = 0; a < 20; a++) { const th = (a / 20) * Math.PI * 2, rx = 50, ry = 8.5; px(b, 82 + Math.cos(th) * rx, 82 + Math.sin(th) * ry, cc[0]); }
+    // front half of the cushion: puffy lip, button and stitching
+    for (let x = 23; x <= 141; x++) { const nx = (x + 0.5 - 82) / 59, d = Math.sqrt(Math.max(0, 1 - nx * nx)); const yt = 83 + d * 12, yb = 83 + d * 15;
+      for (let y = Math.floor(yt - 1); y <= yb; y++) { const t = (y - yt + 1) / (yb - yt + 1.5); px(f, x, y, rampPick([cc[0], cc[1], cc[2], cc[3]], clamp(0.1 + t * 0.95 - (nx > 0 ? -0.1 : 0.05), 0, 0.99), x, y)); }
+      if ((x % 6) < 3) px(f, x, yt + 2, dk(cc[1], 0.82)); }
+    for (let x = 23; x <= 141; x++) { const nx = (x + 0.5 - 82) / 59, d = Math.sqrt(Math.max(0, 1 - nx * nx)); px(f, x, 83 + d * 15, dk(cc[3], 0.7)); }
+    for (let i = 0; i < 5; i++) { const nx = (-1 + i * 0.5) * 0.9, d = Math.sqrt(1 - nx * nx); px(f, 82 + nx * 59, 83 + d * 9.5, dk(cc[3], 0.8), 2, 2); px(f, 82 + nx * 59, 83 + d * 9.5, cc[0]); }
+  }
+
+  // ---------- zzz and dust ----------
+  const motes = Array.from({ length: 16 }, (_, i) => ({ x: 18 + (i * 37) % 50, y: 24 + (i * 53) % 60, s: 0.15 + (i % 5) * 0.05, p: i }));
+  const ZZ = { z: ['#####', '...#.', '..#..', '.#...', '#####'] };
+  function drawZ(c, x, y, sc, a) { c.globalAlpha = a; ZZ.z.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') { px(c, x + i * sc + sc, y + j * sc + sc, '#1c2540', sc, sc); px(c, x + i * sc, y + j * sc, '#f4f0ff', sc, sc); } })); c.globalAlpha = 1; }
+
+  function frame(ms) {
+    const hour = localHour(), light = daylight(hour), night = 1 - light;
+    g.clearRect(0, 0, HW, HH); g.drawImage(backL, 0, 0);
+    // window with sky, frame, curtains
+    const wx = 14, wy = 10, ww = 40, wh = 36;
+    const sky = g.createLinearGradient(0, wy, 0, wy + wh);
+    sky.addColorStop(0, mixc('#0b1030', '#5aa2ea', light)); sky.addColorStop(1, mixc('#2b3866', '#cbe8fb', light));
+    g.save(); g.beginPath(); g.rect(wx, wy, ww, wh); g.clip();
+    g.fillStyle = sky; g.fillRect(wx, wy, ww, wh);
+    if (night > 0.3) { g.globalAlpha = night; for (let i = 0; i < 14; i++) { const sx = wx + 2 + (i * 11) % (ww - 4), sy = wy + 2 + (i * 7) % 18; px(g, sx, sy, (Math.sin(ms / 400 + i) > 0.2) ? '#fff' : '#9aa7d8'); } ell(g, wx + 29, wy + 10, 4.6, 4.6, '#f3ecd0'); ell(g, wx + 31, wy + 9, 4, 4.2, mixc('#0b1030', '#2b3866', 0.4)); g.globalAlpha = 1; }
+    if (light > 0.15) { g.globalAlpha = clamp(light * 1.5, 0, 1); ell(g, wx + 12, wy + 11, 4.5, 4.5, '#ffe07a'); ell(g, wx + 12, wy + 11, 3, 3, '#fff6b8'); const cx = wx + ((ms / 600) % 60) - 10; ell(g, cx, wy + 24, 7, 2.6, '#fff'); ell(g, cx + 5, wy + 23, 4, 2.2, '#fff'); g.globalAlpha = 1; }
+    g.restore();
+    g.fillStyle = '#4a3220'; g.fillRect(wx - 2, wy - 2, ww + 4, 2); g.fillRect(wx - 2, wy + wh, ww + 4, 3); g.fillRect(wx - 2, wy, 2, wh); g.fillRect(wx + ww, wy, 2, wh);
+    g.fillStyle = '#7a563a'; g.fillRect(wx - 2, wy - 2, ww + 4, 1); g.fillRect(wx - 3, wy + wh + 3, ww + 6, 2); g.fillStyle = '#4a3220'; g.fillRect(wx + ww / 2 - 1, wy, 2, wh); g.fillRect(wx, wy + wh / 2 - 1, ww, 2);
+    g.fillStyle = '#8b6a48'; g.fillRect(wx + ww / 2 - 1, wy, 1, wh); g.fillRect(wx, wy + wh / 2 - 1, ww, 1);
+    const sway = Math.sin(ms / 1800) * 0.6; g.fillStyle = '#b5566a'; g.fillRect(wx - 2, wy - 3, 9 + sway, wh + 4); g.fillRect(wx + ww - 7, wy - 3, 9 - sway, wh + 4); g.fillStyle = '#d98096'; for (let i = 0; i < 4; i++) { g.fillRect(wx - 2 + i * 2, wy - 3, 1, wh + 4); g.fillRect(wx + ww - 7 + i * 2, wy - 3, 1, wh + 4); } g.fillStyle = '#8a3f52'; g.fillRect(wx - 3, wy - 4, ww + 6, 2);
+    // light shaft from the window across the rug (sun by day, moon by night)
+    const shaft = g.createLinearGradient(wx, wy + wh, wx + 50, 92);
+    shaft.addColorStop(0, night > 0.5 ? 'rgba(160,190,255,0.20)' : 'rgba(255,240,190,' + (0.28 * light) + ')'); shaft.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = shaft; g.beginPath(); g.moveTo(wx + 2, wy + wh); g.lineTo(wx + ww - 2, wy + wh); g.lineTo(wx + ww + 56, 96); g.lineTo(wx + 18, 96); g.fill();
+    // the cat, breathing on the cushion
+    if (!catKind) return;
+    const cat = renderCat(catKind, ms), cx = 34, cy = 40;
+    g.globalAlpha = 0.3; ell(g, 84, 88, 46, 6, '#000'); g.globalAlpha = 1;
+    g.imageSmoothingEnabled = false; g.drawImage(cat, cx, cy, CW * 1.5, CH * 1.5);
+    // knitted blanket draped over her hind end, rising and falling with each breath
+    const br = Math.sin(ms / 1100) * 0.8, bc = catKind === 'siamese' ? ['#e8b64a', '#c98f2a', '#a96d1d', '#f6dc8c'] : ['#6aa8b8', '#4a8498', '#356578', '#a8d6e0'];
+    for (let x = 100; x <= 128; x++) { const t = (x - 100) / 28, top = 60 + t * 5 + Math.sin(x / 2.6) * 0.9 - br * 0.6, bot = 91 - t * 3;
+      for (let y = Math.floor(top); y <= bot; y++) { const v = clamp(0.2 + (y - top) / 34, 0, 0.99); let col = rampPick([bc[0], bc[1], bc[2]], v, x, y); if (((x >> 1) + y) % 7 === 0 && y > top + 2) col = bc[3]; else if ((x + y) % 4 === 0) col = dk(col, 0.92); px(g, x, y, (y <= top + 1 || x === 100) ? dk(col, 0.62) : col); }
+      px(g, x, bot, dk(bc[2], 0.6)); }
+    for (let k = 0; k < 6; k++) px(g, 128, 66 + k * 4, bc[3], 2, 2); // fringe
+    g.drawImage(frontL, 0, 0);
+    // floating Zzz
+    for (let i = 0; i < 3; i++) { const p = ((ms / 2600) + i / 3) % 1; drawZ(g, 58 + p * 22 + Math.sin(p * 6) * 2, 56 - p * 32, p < 0.4 ? 1 : 2, Math.sin(p * Math.PI)); }
+    // string lights with a soft twinkle
+    const cols = ['#ff7a7a', '#ffd36a', '#8ae0a0', '#7ac0ff', '#e89aff'];
+    for (let x = 0; x <= HW; x += 3) px(g, x, 4 + Math.sin(x / 26 * Math.PI) * 2.4 + 2, '#2b1c14');
+    for (let i = 0; i < 12; i++) { const x = 6 + i * 13.6, y = 7 + Math.sin(x / 26 * Math.PI) * 2.4, on = (Math.sin(ms / 500 + i * 1.7) + 1) / 2; px(g, x, y + 1, '#2b1c14'); g.globalAlpha = 0.25 + 0.2 * on; ell(g, x, y + 4, 4, 4, cols[i % 5]); g.globalAlpha = 0.6 + 0.4 * on; ell(g, x, y + 4, 1.6, 1.8, cols[i % 5]); g.globalAlpha = 1; }
+    // lantern on the shelf: warm flickering glow
+    const fl = 0.82 + Math.sin(ms / 130) * 0.06 + Math.sin(ms / 370) * 0.06;
+    g.fillStyle = '#2b1c14'; g.fillRect(124, 27, 8, 7); g.fillStyle = '#ffc861'; g.fillRect(125, 28, 6, 5); g.fillStyle = '#fff0b0'; g.fillRect(126, 29, 4, 3); g.fillStyle = '#7a5a3a'; g.fillRect(124, 26, 8, 1); g.fillRect(126, 25, 4, 1);
+    const glow = g.createRadialGradient(128, 31, 2, 128, 31, 62); glow.addColorStop(0, 'rgba(255,190,100,' + ((0.22 + 0.2 * night) * fl) + ')'); glow.addColorStop(1, 'rgba(255,190,100,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, HW, HH);
+    // dust motes drifting in the light
+    motes.forEach(m => { const mx = (m.x + Math.sin(ms / 1500 + m.p) * 6 + ms * m.s * 0.004) % 100, my = m.y + Math.cos(ms / 1900 + m.p) * 5; g.globalAlpha = 0.25 + 0.3 * Math.abs(Math.sin(ms / 700 + m.p)); px(g, 20 + mx * 0.9, my, '#fff6d0'); }); g.globalAlpha = 1;
+    // cozy vignette; darker at night
+    const vg = g.createRadialGradient(80, 52, 26, 80, 52, 112); vg.addColorStop(0, 'rgba(10,6,20,0)'); vg.addColorStop(1, 'rgba(10,6,20,' + (0.5 + 0.2 * night) + ')'); g.fillStyle = vg; g.fillRect(0, 0, HW, HH);
+    if (night > 0.2) { g.fillStyle = 'rgba(30,30,90,' + (0.12 * night) + ')'; g.fillRect(0, 0, HW, HH); }
+  }
+  function loop(ms) { frame(ms); raf = requestAnimationFrame(loop); }
+
+  function open() {
+    who = ACTIVE === 'kitty' ? 'ticky' : 'kitty';
+    catKind = CATS[who].pre === '' ? 'siamese' : 'tabby'; buildRoom(catKind);
+    $('house-cap').textContent = CATS[who].name + ' is having a nap';
+    openedAt = performance.now(); panel.classList.add('open'); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+  }
+  function close() { panel.classList.remove('open'); cancelAnimationFrame(raf); }
+  window.openHouse = open;
+  panel.addEventListener('click', () => { if (performance.now() - openedAt > 450) close(); }); // ignore the tap that opened it
+  $('house-close').addEventListener('click', e => { e.stopPropagation(); close(); });
+})();
+
 // keep the area around the canvas the same colour as the sky / grass at its edges
 let lastEdge = '';
 setInterval(() => {
