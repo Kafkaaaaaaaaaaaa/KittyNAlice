@@ -645,7 +645,7 @@ const Iustina = {
   catTime() {
     if (this.state === 'smoke') return false;
     if (G.kissing || this.kissPulse > 0 || this.busy) return true;
-    return ['kitty', 'ticky'].some(id => ['petted', 'held', 'cuddle', 'play', 'eat', 'beg'].includes(CATS[id].state) && CATS[id].state !== 'house');
+    return ['kitty', 'ticky'].some(id => ['petted', 'held', 'lift', 'drop', 'cuddle', 'play', 'eat', 'beg'].includes(CATS[id].state) && CATS[id].state !== 'house');
   },
   drawSparkle(spr, key, sx, sy) {
     if (!this.catTime()) return;
@@ -776,8 +776,20 @@ function makeCat(name, pre, x0, stats0) {
         if (this.x >= HOUSE_X + 30) this.setState('idle');
         return;
       }
+      if (this.state === 'lift' || this.state === 'drop') {
+        // scoop up / set down along a soft arc between the ground and her arms
+        const up = this.state === 'lift', p = clamp(this.stateT / (up ? 24 : 20), 0, 1), e = p * p * (3 - 2 * p);
+        const hx = Iustina.x + Iustina.dir * 6, hy = Iustina.y - 18, gx = this.liftX, gy = GROUND + 4;
+        const k = up ? e : 1 - e;
+        this.x = gx + (hx - gx) * k; this.y = gy + (hy - gy) * k - Math.sin(Math.PI * p) * 6;
+        if (p >= 1) {
+          if (up) { this.setState('held'); particle('\u2665', this.x, this.y - 26, '#ff6f91'); sound('purr'); addCoins(1); endTask(); }
+          else { this.x = gx; this.y = gy; this.setState('idle'); }
+        }
+        return;
+      }
       if (this.state === 'held') {
-        this.x = Iustina.x + Iustina.dir * 9; this.y = Iustina.y - 8;
+        this.x = Iustina.x + Iustina.dir * 6; this.y = Iustina.y - 18 + ((Math.floor(this.timer / 45) % 2) ? 1 : 0);
         if (this.timer % 60 === 0) st.happy = clamp(st.happy + 0.6, 0, 100);
         return;
       }
@@ -875,7 +887,15 @@ function makeCat(name, pre, x0, stats0) {
         ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(Math.floor(this.x - 10), GROUND + 4, 20, 2);
       }
       const s = drawCat(this.pre, n, flip, this.x, this.y + bob);
-      nameTag(this.name, this.x, this.y - s.height - 5);
+      if (['held', 'lift', 'drop'].includes(this.state)) {
+        // her forearms cradling the cat from underneath
+        const ax = Math.floor(this.x) - 12, ay = Math.floor(this.y + bob) - 3;
+        ctx.fillStyle = '#1d1412'; ctx.fillRect(ax - 1, ay - 1, 26, 6);
+        ctx.fillStyle = '#f1c27d'; ctx.fillRect(ax, ay, 24, 4);
+        ctx.fillStyle = '#e0ab68'; ctx.fillRect(ax, ay + 2, 24, 2);
+        ctx.fillStyle = '#f7d9a4'; ctx.fillRect(ax + 2, ay, 7, 1);
+      }
+      if (!['held', 'lift', 'drop'].includes(this.state)) nameTag(this.name, this.x, this.y - s.height - 5);
     }
   };
 }
@@ -900,7 +920,7 @@ function switchTo(id) {
   if (G.inBed) { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
   if (Iustina.busy) return;
   const old = cat(), nu = CATS[id];
-  if (old.state === 'held') { bubble('Put ' + old.name + ' down first', Iustina.x, Iustina.y - 50); return; }
+  if (old.state === 'held' || old.state === 'lift' || old.state === 'drop') { if (old.state === 'held') bubble('Put ' + old.name + ' down first', Iustina.x, Iustina.y - 90); return; }
   ACTIVE = id;
   old.setState('toHouse');
   if (nu.state === 'house' || nu.state === 'toHouse') { nu.x = HOUSE_X; nu.setState('outHouse'); }
@@ -948,13 +968,14 @@ function load() {
 }
 
 // ===== ACTIONS =====
-function startTask() { if (Iustina.busy || cat().state === 'held') return false; Iustina.busy = true; return true; }
+function startTask() { if (Iustina.busy || ['held', 'lift', 'drop'].includes(cat().state)) return false; Iustina.busy = true; return true; }
 function endTask() { Iustina.busy = false; }
 function sideOf(x) { return Iustina.x <= x ? -1 : 1; }
 
 window.action = function (type) {
   ac(); sound('click');
   const c = cat(), st = c.stats;
+  if (c.state === 'lift' || c.state === 'drop') return;
   if (c.state === 'held' && type !== 'hold' && type !== 'pet' && type !== 'kiss') { bubble('Put ' + c.name + ' down first', Iustina.x, Iustina.y - 50); return; }
   if (G.inBed && type !== 'bed' && type !== 'pet') { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
   switch (type) {
@@ -1068,13 +1089,13 @@ window.action = function (type) {
       break;
     case 'hold': {
       if (c.state === 'held') {
-        c.setState('idle'); c.y = GROUND + 4; Iustina.crouchFor(400); bubble('Down you go', Iustina.x, Iustina.y - 50); return;
+        c.liftX = clamp(Iustina.x + Iustina.dir * 18, 18, W - 18); c.setState('drop'); Iustina.crouchFor(520); bubble('Down you go', Iustina.x, Iustina.y - 90); return;
       }
       if (!startTask()) return;
       c.setState('wait');
       Iustina.goTo(c.x + sideOf(c.x) * 20, () => {
         Iustina.dir = c.x > Iustina.x ? 1 : -1;
-        Iustina.crouchFor(450, () => { c.setState('held'); particle('♥', c.x, c.y - 26, '#ff6f91'); sound('purr'); addCoins(1); endTask(); });
+        Iustina.crouchFor(380, () => { c.liftX = c.x; c.setState('lift'); });
       });
       break; }
     case 'bed': {
