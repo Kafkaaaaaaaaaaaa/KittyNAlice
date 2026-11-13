@@ -128,11 +128,11 @@
     </div>
     <div class="dpanel" id="p-rest">
       <button class="act" onclick="action('sleep')"><span class="ic">&#x1F634;</span>Sleep</button>
-      <button class="act" id="bed-btn" onclick="action('bed')"><span class="ic">&#x1F6CF;&#xFE0F;</span><span id="bed-label">Bed</span></button>
+      <button class="act" id="bed-btn" onclick="action('bed')"><span class="ic">&#x1F6CF;&#xFE0F;</span><span id="bed-label">Go home</span></button>
       <button class="act" onclick="action('smoke')"><span class="ic">&#x1F6AC;</span>Smoke</button>
       <button class="act" id="outfit-btn"><span class="ic">&#x1F457;</span>Outfit</button>
     </div>
-    <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The one you leave goes into the cathouse. Tap the cathouse to peek in, or the flat to send Iustina home.</div>
+    <div class="hint">Tap a cat to pet it, or tap the other cat to switch. The one you leave goes into the cathouse. Tap the cathouse to peek in, or Iustina's house to send her home.</div>
   </div>
 </div>
 
@@ -475,8 +475,42 @@ function localHour() {
 }
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 function daylight(h) { return smooth(5, 7.5, h) * (1 - smooth(17, 19.5, h)); } // 0 = night, 1 = full day
-const FLAT_WIN = [{ x: 128, y: 72, w: 14, h: 12, hers: true }, { x: 162, y: 72, w: 14, h: 12 }, { x: 128, y: 95, w: 14, h: 9 }];
 const mixHex = (a, b, t) => { const A = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16)), B = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16)); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',') + ')'; };
+const IH_X0 = 220, IH_Y0 = GROUND + 4 - 72, DOOR_X = 278, IH_WIN = { x: IH_X0 + 18, y: IH_Y0 + 36, w: 24, h: 21 };
+const IHOUSE = (function () {
+  const c = document.createElement('canvas'); c.width = 84; c.height = 72; const g = c.getContext('2d');
+  const cell = (x, y, col, w = 1, h = 1) => { g.fillStyle = col; g.fillRect(x * 3, y * 3, w * 3, h * 3); };
+  const ramp = (r, v, x, y) => r[Math.max(0, Math.min(r.length - 1, Math.floor((v + (((x + y) & 1) ? 0.05 : -0.05)) * r.length)))];
+  // chimney (behind the roof)
+  for (let y = 0; y < 8; y++) for (let x = 20; x < 24; x++) cell(x, y, ramp(['#a89a88', '#8a7f74', '#6e645b'], (x - 20) / 4 + ((y % 2) ? 0.1 : 0), x, y));
+  cell(19, 0, '#5a5148', 6, 1);
+  // timber-framed cream walls with a stone footing
+  for (let y = 9; y < 24; y++) for (let x = 3; x < 25; x++) cell(x, y, y >= 22 ? ramp(['#a39686', '#857a6c', '#6e645b'], ((x * 7 + y) % 5) / 5, x, y) : ramp(['#f0e4cc', '#e6d6b8', '#d6c4a2', '#c4b08c'], 0.08 + (x - 3) / 40 + (y - 9) / 60, x, y));
+  for (let y = 9; y < 22; y++) { cell(3, y, '#6b5444'); cell(24, y, '#6b5444'); } cell(3, 9, '#6b5444', 22, 1); cell(3, 15, '#6b5444', 22, 1);
+  // roof: terracotta shingles with a lit upper edge and a shaded underside
+  for (let y = 0; y < 10; y++) { const hw = Math.min(14, 1 + Math.round(y * 1.5)), x0 = 14 - hw, w = hw * 2;
+    for (let x = x0; x < x0 + w; x++) cell(x, y, ((x + (y & 1) * 2) % 4 < 2) ? ((y & 1) ? '#c4623f' : '#b5573b') : ((y & 1) ? '#a84b32' : '#9c4630'));
+    cell(x0, y, '#e08a62'); cell(x0 + w - 1, y, '#7a3524'); }
+  cell(0, 9, '#5a2a1c', 28, 1); cell(0, 10, '#3a1a12', 28, 1);
+  cell(12, 3, '#2b1c14', 3, 3); cell(13, 4, '#ffd98a'); // attic window (round)
+  // door (right-hand side), arched, with a little window and a brass knob
+  for (let y = 14; y < 22; y++) for (let x = 17; x < 22; x++) { if (y === 14 && (x === 17 || x === 21)) continue; cell(x, y, ramp(['#9a6248', '#7a4a38', '#5a3426'], (x - 17) / 6, x, y)); }
+  cell(19, 14, '#5a3426'); cell(19, 14, '#7a4a38'); cell(19, 16, '#3a2a40', 1, 2); cell(18, 16, '#5a3426'); cell(20, 16, '#5a3426'); cell(21, 18, '#d9b36a');
+  cell(16, 13, '#f4efe6', 7, 1); cell(16, 14, '#f4efe6', 1, 8); cell(22, 14, '#f4efe6', 1, 8);
+  cell(16, 22, '#c9bda8', 7, 1); cell(15, 23, '#b0a490', 9, 1);
+  cell(23, 15, '#ffd98a'); cell(23, 16, '#ffeeb8'); // porch lamp
+  // window (panes are painted live: glow at night) with a flower box
+  cell(5, 12, '#f4efe6', 10, 1); cell(5, 19, '#f4efe6', 10, 1); cell(5, 12, '#f4efe6', 1, 8); cell(14, 12, '#f4efe6', 1, 8);
+  cell(6, 13, '#26304a', 8, 6);
+  cell(4, 20, '#7a5a40', 12, 2); cell(4, 20, '#8f6c4c', 12, 1);
+  [[5, '#e89aaf'], [7, '#f2d27a'], [9, '#e89aaf'], [11, '#f2d27a'], [13, '#e89aaf']].forEach(([x, col]) => { cell(x, 19, '#4f9a5a'); cell(x, 18, col); });
+  // outline the whole silhouette
+  const id = g.getImageData(0, 0, 84, 72), d = id.data, out = new Uint8ClampedArray(d);
+  const A = (x, y) => (x < 0 || y < 0 || x >= 84 || y >= 72) ? 0 : d[(y * 84 + x) * 4 + 3];
+  for (let y = 0; y < 72; y++) for (let x = 0; x < 84; x++) if (!A(x, y) && (A(x - 1, y) || A(x + 1, y) || A(x, y - 1) || A(x, y + 1))) { const i = (y * 84 + x) * 4; out[i] = 43; out[i + 1] = 28; out[i + 2] = 22; out[i + 3] = 255; }
+  g.putImageData(new ImageData(out, 84, 72), 0, 0);
+  return c;
+})();
 const rampPickEx = (r, v, x, y) => r[clamp(Math.floor((v + (((x + y) & 1) ? 0.04 : -0.04)) * r.length), 0, r.length - 1)];
 (function buildBG() {
   // tiny seeded random so the scenery looks the same every visit
@@ -534,19 +568,6 @@ const rampPickEx = (r, v, x, y) => r[clamp(Math.floor((v + (((x + y) & 1) ? 0.04
   };
   pine(30, HORIZON + 2, 30, '#0d1a30', '#16294a'); pine(78, HORIZON, 22, '#0f1d34', '#182c4d');
   pine(232, HORIZON + 2, 34, '#0d1a30', '#16294a'); pine(286, HORIZON, 26, '#0f1d34', '#182c4d');
-
-  // --- Iustina's little flat: a small two-storey block behind the fence (windows are drawn live) ---
-  { const x0 = 120, x1 = 184, y0 = 62, y1 = 118;
-    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const t = (x - x0) / (x1 - x0); b.fillStyle = rampPickEx(['#e6d6b8', '#d9c7a8', '#c9b592', '#b6a07c'], 0.12 + t * 0.55 + (y - y0) / 260, x, y); b.fillRect(x, y, 1, 1); }
-    for (let y = y0 + 2; y < y1; y += 4) for (let x = x0 + ((y >> 2) & 1) * 4; x < x1; x += 8) { b.fillStyle = 'rgba(120,90,60,.16)'; b.fillRect(x, y, 6, 1); } // brick courses
-    b.fillStyle = '#6b5444'; b.fillRect(x0 - 3, y0 - 5, x1 - x0 + 6, 6); b.fillStyle = '#8a7058'; b.fillRect(x0 - 3, y0 - 5, x1 - x0 + 6, 1); b.fillStyle = '#4a382c'; b.fillRect(x0 - 3, y0, x1 - x0 + 6, 1);
-    b.fillStyle = '#b49c78'; b.fillRect(x0, 90, x1 - x0, 3); b.fillStyle = '#d9c7a8'; b.fillRect(x0, 90, x1 - x0, 1);
-    b.fillStyle = '#3d3d4a'; b.fillRect(168, y0 - 12, 1, 8); b.fillRect(165, y0 - 10, 7, 1); b.fillRect(166, y0 - 8, 5, 1); // antenna
-    b.fillStyle = '#8a5a3a'; b.fillRect(124, y0 - 8, 10, 4); b.fillStyle = '#4f9a5a'; b.fillRect(125, y0 - 10, 3, 2); b.fillRect(129, y0 - 11, 3, 3); // roof planter
-    [[128, 72, 14, 12], [162, 72, 14, 12], [128, 95, 14, 9]].forEach(([wx, wy, ww, wh]) => { b.fillStyle = '#f4efe6'; b.fillRect(wx - 2, wy - 2, ww + 4, wh + 4); b.fillStyle = '#9c8a70'; b.fillRect(wx - 2, wy + wh + 2, ww + 4, 1); b.fillStyle = '#7a5a40'; b.fillRect(wx - 3, wy + wh + 3, ww + 6, 3); b.fillStyle = '#4f9a5a'; for (let i = 0; i < ww + 4; i += 3) b.fillRect(wx - 2 + i, wy + wh + 2, 2, 1); b.fillStyle = ['#e89aaf', '#f2d27a'][(wx >> 3) & 1]; for (let i = 1; i < ww + 4; i += 4) b.fillRect(wx - 2 + i, wy + wh + 1, 1, 1); });
-    b.fillStyle = '#7a4a38'; b.fillRect(152, 100, 14, 18); b.fillStyle = '#9a6248'; b.fillRect(152, 100, 14, 1); b.fillStyle = '#5a3426'; b.fillRect(158, 100, 1, 18); b.fillRect(152, 108, 14, 1); b.fillStyle = '#d9b36a'; b.fillRect(163, 110, 2, 2); b.fillStyle = '#f4efe6'; b.fillRect(150, 98, 18, 2); b.fillRect(150, 99, 1, 19); b.fillRect(167, 99, 1, 19);
-    b.fillStyle = '#c9b37a'; b.fillRect(151, 117, 16, 1); b.fillStyle = '#5a4a3a'; b.fillRect(171, 98, 7, 5); b.fillStyle = '#f4efe6'; b.fillRect(172, 99, 5, 3); b.fillStyle = '#3a3a48'; b.fillRect(173, 99, 1, 3); b.fillRect(175, 99, 1, 3); // house number plate
-  }
 
   // --- grass: gentle mowed stripes, no noise ---
   b.fillStyle = '#244a33'; b.fillRect(0, HORIZON, W, H - HORIZON);
@@ -637,14 +658,8 @@ const Iustina = {
   },
   draw() {
     if (this.hidden) return;
-    if (this.state === 'lie') {
-      const s = Sprites[this.pre + 'girl_lie'];
-      const ly = GROUND - 8 - s.height + ((Math.floor(this.timer / 50) % 2) ? 1 : 0);
-      ctx.drawImage(s, BED_X - 30, ly); this.drawSparkle(s, this.pre + 'girl_lie', BED_X - 30, ly);
-      ctx.fillStyle = '#8f6fb5'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 7);
-      ctx.fillStyle = '#a98bd0'; ctx.fillRect(BED_X - 2, GROUND - 14, 34, 1);
-      return;
-    }
+    if (this.state === 'lie') return; // she's inside her house
+
     let n = 'girl_idle', bob = (this.state === 'idle' && Math.floor(this.timer / 40) % 2) ? 1 : 0;
     if (this.state === 'walk') {
       const ph = Math.floor(this.timer / 9) % 4;
@@ -828,9 +843,9 @@ function makeCat(name, pre, x0, stats0) {
       if (this.state === 'wait') return;
       if (this.state === 'petted') { if (this.stateT > this.freeze) this.setState('idle'); return; }
       if (this.state === 'toBed') {
-        const dx = (BED_X - 46) - this.x;
+        const dx = (DOOR_X + 4) - this.x;
         if (Math.abs(dx) > 3) { this.dir = dx > 0 ? 1 : -1; this.x += this.dir * 1.6; }
-        else { this.hopFromX = this.x; this.setState('hop'); }
+        else { this.setState('cuddle'); sound('purr'); particle('\u2665', this.x, this.y - 40, '#ff6f91'); }
         return;
       }
       if (this.state === 'hop') {
@@ -842,11 +857,11 @@ function makeCat(name, pre, x0, stats0) {
         return;
       }
       if (this.state === 'cuddle') {
-        this.x = BED_X - 8; this.y = GROUND - 9;
+        this.x = DOOR_X; this.y = GROUND + 4;
         if (this.stateT % 60 === 0) {
           st.energy = clamp(st.energy + 3, 0, 100); st.happy = clamp(st.happy + 1, 0, 100); updateUI();
           const z = this.stateT % 120 === 0;
-          particle(z ? 'Zzz' : '♥', this.x + 8, this.y - 14, z ? '#cfd8ff' : '#ff6f91');
+          if (z) particle('Zzz', IH_WIN.x + 14, IH_WIN.y - 4, '#cfd8ff');
           if (this.stateT % 240 === 0) sound('purr');
         }
         return;
@@ -900,7 +915,7 @@ function makeCat(name, pre, x0, stats0) {
       this.x = clamp(this.x, 14, W - 14);
     },
     draw() {
-      if (this.state === 'house') return;
+      if (this.state === 'house' || this.state === 'cuddle') return;
       let n = 'cat_sit', bob = 0;
       const flip = this.dir === -1;
       if (['walk', 'toBed', 'outHouse', 'toHouse'].includes(this.state)) {
@@ -948,7 +963,7 @@ function initCats() {
 // Switches the active cat. The one leaving walks into the cathouse.
 function switchTo(id) {
   if (id === ACTIVE || !CATS[id]) return;
-  if (G.inBed) { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
+  if (G.inBed) { bubble('Come out first!', DOOR_X - 6, GROUND - 40); return; }
   if (Iustina.busy) return;
   const old = cat(), nu = CATS[id];
   if (old.state === 'held' || old.state === 'lift' || old.state === 'drop') { if (old.state === 'held') bubble('Put ' + old.name + ' down first', Iustina.x, Iustina.y - 90); return; }
@@ -1008,7 +1023,7 @@ window.action = function (type) {
   const c = cat(), st = c.stats;
   if (c.state === 'lift' || c.state === 'drop') return;
   if (c.state === 'held' && type !== 'hold' && type !== 'pet' && type !== 'kiss') { bubble('Put ' + c.name + ' down first', Iustina.x, Iustina.y - 50); return; }
-  if (G.inBed && type !== 'bed' && type !== 'pet') { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
+  if (G.inBed && type !== 'bed' && type !== 'pet') { bubble('Come out first!', DOOR_X - 6, GROUND - 40); return; }
   switch (type) {
     case 'feed': {
       if (st.hunger >= 95) { bubble('Not hungry', c.x, c.y - 34); return; }
@@ -1111,7 +1126,7 @@ window.action = function (type) {
       else { st.hunger = clamp(st.hunger + 5, 0, 100); st.happy = clamp(st.happy + 8, 0, 100); bubble('Yum!', c.x, c.y - 34); particle('♥', c.x, c.y - 26, '#ff6f91'); sound('meow'); addCoins(1); }
       updateUI(); break;
     case 'smoke':
-      if (G.inBed) { bubble('Get up first!', BED_X - 6, GROUND - 40); return; }
+      if (G.inBed) { bubble('Come out first!', DOOR_X - 6, GROUND - 40); return; }
       if (Iustina.state !== 'idle' || !startTask()) return;
       Iustina.smoke(); break;
     case 'sleep':
@@ -1133,19 +1148,19 @@ window.action = function (type) {
       const btn = $('bed-btn');
       if (G.inBed) { // get up
         G.inBed = false; Iustina.cb = null;
-        if (Iustina.state === 'lie') { Iustina.state = 'idle'; Iustina.x = BED_X - 46; Iustina.dir = -1; }
+        if (Iustina.state === 'lie') { Iustina.state = 'idle'; Iustina.x = DOOR_X - 6; Iustina.dir = -1; sound('click'); }
         else if (Iustina.state === 'walk') Iustina.state = 'idle';
         if (['toBed', 'hop', 'cuddle'].includes(c.state)) {
-          c.setState('idle'); c.x = BED_X - 40; c.y = GROUND + 4; c.dir = -1; bubble('Mrrp!', c.x, c.y - 34);
+          c.setState('idle'); c.x = DOOR_X - 30; c.y = GROUND + 4; c.dir = -1; bubble('Mrrp!', c.x, c.y - 34);
         }
-        endTask(); $('bed-label').textContent = 'Bed'; return;
+        endTask(); $('bed-label').textContent = 'Go home'; return;
       }
       if (!startTask()) return;
-      G.inBed = true; G.toy = null; G.bowl = null; $('bed-label').textContent = 'Get up';
-      Iustina.goTo(BED_X - 46, () => {
+      G.inBed = true; G.toy = null; G.bowl = null; $('bed-label').textContent = 'Come out';
+      Iustina.goTo(DOOR_X, () => {
         if (!G.inBed) return;
-        Iustina.dir = 1; Iustina.state = 'lie'; Iustina.x = BED_X - 6;
-        bubble('Nap time~', BED_X - 6, GROUND - 46);
+        Iustina.dir = 1; Iustina.state = 'lie'; Iustina.x = DOOR_X; sound('click');
+        bubble('Nap time~', DOOR_X, GROUND - 50);
         setTimeout(() => { if (G.inBed && Iustina.state === 'lie' && c.state !== 'held') c.setState('toBed'); }, 900);
       });
       break; }
@@ -1168,8 +1183,7 @@ canvas.addEventListener('pointerdown', e => {
   }
   const hs = Sprites.house;
   if (Math.abs(x - HOUSE_X) < hs.width / 2 + 2 && y > GROUND + 4 - hs.height && y < GROUND + 8) { openHouse(); return; }
-  if (Math.abs(x - BED_X) < 40 && y > GROUND - 30 && y < GROUND + 10) { openBedroom(); return; }
-  if (Math.abs(x - 152) < 36 && y > 54 && y < 122) { enterFlat(); return; }
+  if (x > IH_X0 - 2 && x < IH_X0 + 86 && y > IH_Y0 && y < GROUND + 8) { enterFlat(); return; }
   if (y > 115 && !Iustina.busy) Iustina.goTo(x);
 });
 
@@ -1188,18 +1202,6 @@ function draw() {
   const glow = 1 - Math.abs(light * 2 - 1);
   if (glow > 0.05 && light > 0.001) { const gr = ctx.createLinearGradient(0, 30, 0, 118); gr.addColorStop(0, 'rgba(255,150,90,0)'); gr.addColorStop(1, 'rgba(255,140,80,' + (0.38 * glow) + ')'); ctx.fillStyle = gr; ctx.fillRect(0, 30, W, 88); }
   ctx.drawImage(bg, 0, 0);
-  { // the flat's windows: sky-blue glass by day, warm lamplight at night (hers goes dark when she's asleep)
-    const asleep = G.inBed && Iustina.state === 'lie', night = 1 - light;
-    FLAT_WIN.forEach(w => {
-      const lit = w.hers ? !asleep : (w.y > 90 ? night > 0.4 : false);
-      ctx.fillStyle = lit && night > 0.3 ? '#ffd98a' : mixHex('#6d9fd0', '#1a2038', night); ctx.fillRect(w.x, w.y, w.w, w.h);
-      ctx.fillStyle = 'rgba(255,255,255,' + (0.35 * light) + ')'; ctx.fillRect(w.x, w.y, w.w, 2); ctx.fillRect(w.x + 1, w.y + 2, 2, w.h - 3);
-      ctx.fillStyle = '#f4efe6'; ctx.fillRect(w.x + (w.w >> 1), w.y, 1, w.h); ctx.fillRect(w.x, w.y + (w.h >> 1), w.w, 1);
-      if (w.hers) { ctx.fillStyle = '#9a86c4'; ctx.fillRect(w.x, w.y, 3, w.h); ctx.fillRect(w.x + w.w - 3, w.y, 3, w.h); ctx.fillStyle = '#b8a6dc'; ctx.fillRect(w.x, w.y, 1, w.h); ctx.fillRect(w.x + w.w - 3, w.y, 1, w.h); }
-      if (lit && night > 0.3) { const gl = ctx.createRadialGradient(w.x + w.w / 2, w.y + w.h / 2, 1, w.x + w.w / 2, w.y + w.h / 2, 22); gl.addColorStop(0, 'rgba(255,210,120,' + (0.3 * night) + ')'); gl.addColorStop(1, 'rgba(255,210,120,0)'); ctx.fillStyle = gl; ctx.fillRect(w.x - 22, w.y - 22, w.w + 44, w.h + 44); }
-    });
-    if (!Iustina.busy && !G.inBed && Iustina.state === 'idle') { ctx.globalAlpha = 0.55 + 0.35 * Math.sin(G.time * 3); ctx.fillStyle = '#fff'; ctx.fillRect(150, 94, 3, 1); ctx.globalAlpha = 1; }
-  }
   ctx.fillStyle = 'rgba(150,215,100,' + (0.3 * light) + ')'; ctx.fillRect(0, 118, W, H - 118); // sunlit grass
   { const hg = ctx.createLinearGradient(0, 70, 0, 124); hg.addColorStop(0, 'rgba(150,195,240,0)'); hg.addColorStop(1, 'rgba(150,195,240,' + (0.42 * light) + ')'); ctx.fillStyle = hg; ctx.fillRect(0, 70, W, 54); } // daylight haze on the hills
   // cathouse
@@ -1210,15 +1212,19 @@ function draw() {
     if (inside.state === 'house') { ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center';
       for (let i = 0; i < 2; i++) { const ph = ((G.time * 0.45) + i * 0.5) % 1; ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.9; ctx.fillStyle = '#fff'; ctx.fillText(i ? 'Z' : 'z', Math.floor(HOUSE_X + 4 + ph * 12), Math.floor(GROUND + 2 - hs.height - ph * 14)); }
       ctx.globalAlpha = 1; } }
-  // bed
-  { const bx = BED_X;
-    ctx.fillStyle = '#3a2a22'; ctx.fillRect(bx - 36, GROUND - 22, 4, 28);
-    ctx.fillStyle = '#5a3a2a'; ctx.fillRect(bx - 34, GROUND - 2, 68, 8);
-    ctx.fillStyle = '#d9d2e9'; ctx.fillRect(bx - 32, GROUND - 8, 64, 6);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(bx - 30, GROUND - 12, 16, 5);
-    ctx.fillStyle = '#e8dfc9'; ctx.fillRect(bx - 30, GROUND - 12, 16, 1);
-    if (!G.inBed) { ctx.fillStyle = '#8f6fb5'; ctx.fillRect(bx - 2, GROUND - 11, 34, 4); ctx.fillStyle = '#a98bd0'; ctx.fillRect(bx - 2, GROUND - 11, 34, 1); }
-  }
+  // Iustina's house (replaces the bed): glowing window, chimney smoke
+  { ctx.drawImage(IHOUSE, IH_X0, IH_Y0);
+    const w = IH_WIN, asleep = G.inBed, inside = G.inBed || Iustina.hidden, night = 1 - daylight(localHour());
+    const lit = inside ? !asleep : night > 0.35;
+    ctx.fillStyle = lit ? '#ffd98a' : mixHex('#6d9fd0', '#1a2038', night); ctx.fillRect(w.x, w.y, w.w, w.h);
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.3 * (1 - night)) + ')'; ctx.fillRect(w.x, w.y, w.w, 3);
+    ctx.fillStyle = '#f4efe6'; ctx.fillRect(w.x + w.w / 2 - 1, w.y, 2, w.h); ctx.fillRect(w.x, w.y + w.h / 2 - 1, w.w, 2);
+    ctx.fillStyle = '#9a86c4'; ctx.fillRect(w.x, w.y, 4, w.h); ctx.fillRect(w.x + w.w - 4, w.y, 4, w.h); ctx.fillStyle = '#b8a6dc'; ctx.fillRect(w.x, w.y, 1, w.h); ctx.fillRect(w.x + w.w - 4, w.y, 1, w.h);
+    if (lit && night > 0.3) { const gl = ctx.createRadialGradient(w.x + 12, w.y + 10, 1, w.x + 12, w.y + 10, 30); gl.addColorStop(0, 'rgba(255,210,120,' + (0.32 * night) + ')'); gl.addColorStop(1, 'rgba(255,210,120,0)'); ctx.fillStyle = gl; ctx.fillRect(w.x - 30, w.y - 30, w.w + 60, w.h + 60); }
+    if (inside) { ctx.font = 'bold 8px "Courier New",monospace'; ctx.textAlign = 'center'; const zz = asleep; // z's drift up from the window while she sleeps
+      if (zz) for (let i = 0; i < 2; i++) { const ph = ((G.time * 0.45) + i * 0.5) % 1; ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.9; ctx.fillStyle = '#fff'; ctx.fillText(i ? 'Z' : 'z', Math.floor(w.x + 6 + ph * 10), Math.floor(w.y - 2 - ph * 14)); } ctx.globalAlpha = 1; }
+    for (let i = 0; i < 3; i++) { const ph = ((G.time * 0.28) + i / 3) % 1; ctx.globalAlpha = (1 - ph) * 0.5; ctx.fillStyle = '#cfd3dc'; const r = 2 + Math.floor(ph * 3); ctx.fillRect(Math.floor(IH_X0 + 64 + Math.sin(ph * 5 + i) * 3 + ph * 8), Math.floor(IH_Y0 - 2 - ph * 24), r, r); }
+    ctx.globalAlpha = 1; }
   if (G.bowl) { const s = Sprites.bowl; ctx.drawImage(s, Math.floor(G.bowl.x - s.width / 2), GROUND + 4 - s.height); }
   if (G.toy) { const s = Sprites.toy; const bob = Math.abs(Math.sin(G.time * 6)) * 3; ctx.drawImage(s, Math.floor(G.toy.x - s.width / 2), Math.floor(GROUND + 4 - s.height - bob)); }
   Iustina.draw();
@@ -1647,13 +1653,13 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
       if (Iustina.hidden) { Iustina.hidden = false; Iustina.dir = 1; if (Iustina.enteredFlat) { Iustina.enteredFlat = false; endTask(); bubble('Back outside', Iustina.x, Iustina.y - 90); } } }, 520);
   }
   const canvasPoint = (cx, cy) => { const r = $('c').getBoundingClientRect(); return { x: r.left + cx / W * r.width, y: r.top + cy / H * r.height }; };
-  function openBed(fromFlat) { mode = 'bed'; bedSig = ''; buildBedroom(); origin = fromFlat ? canvasPoint(135, 78) : canvasPoint(BED_X, GROUND - 10); openedAt = performance.now(); showPanel(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
+  function openBed(fromFlat) { mode = 'bed'; bedSig = ''; buildBedroom(); origin = canvasPoint(IH_WIN.x + 12, IH_WIN.y + 10); openedAt = performance.now(); showPanel(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
   // tapping the flat: she walks to her front door, steps inside, and the screen irises into her bedroom
   function enterFlat() {
     if (G.inBed || Iustina.state === 'lie') { openBed(true); return; }
     if (!startTask()) { if (cat().state === 'held') bubble('Put ' + cat().name + ' down first', Iustina.x, Iustina.y - 90); return; }
     Iustina.enteredFlat = true;
-    Iustina.goTo(159, () => { Iustina.dir = 1; setTimeout(() => { Iustina.hidden = true; sound('click'); setTimeout(() => openBed(true), 260); }, 200); });
+    Iustina.goTo(DOOR_X, () => { Iustina.dir = 1; setTimeout(() => { Iustina.hidden = true; sound('click'); setTimeout(() => openBed(true), 260); }, 200); });
   }
   window.enterFlat = enterFlat;
   window.openHouse = open; window.openBedroom = () => openBed(false);
