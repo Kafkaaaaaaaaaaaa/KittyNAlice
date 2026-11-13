@@ -1435,7 +1435,7 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
     shaft.addColorStop(0, night > 0.5 ? 'rgba(160,190,255,0.20)' : 'rgba(255,240,190,' + (0.28 * light) + ')'); shaft.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = shaft; g.beginPath(); g.moveTo(wx + 2, wy + wh); g.lineTo(wx + ww - 2, wy + wh); g.lineTo(wx + ww + 56, 96); g.lineTo(wx + 18, 96); g.fill();
     // the cat, breathing on the cushion
-    if (!catKind) return;
+    if (catKind) {
     const cat = renderCat(catKind, ms), cx = 34, cy = 40;
     g.globalAlpha = 0.3; ell(g, 84, 88, 46, 6, '#000'); g.globalAlpha = 1;
     g.imageSmoothingEnabled = false; g.drawImage(cat, cx, cy, CW * 1.5, CH * 1.5);
@@ -1445,9 +1445,15 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
       for (let y = Math.floor(top); y <= bot; y++) { const v = clamp(0.2 + (y - top) / 34, 0, 0.99); let col = rampPick([bc[0], bc[1], bc[2]], v, x, y); if (((x >> 1) + y) % 7 === 0 && y > top + 2) col = bc[3]; else if ((x + y) % 4 === 0) col = dk(col, 0.92); px(g, x, y, (y <= top + 1 || x === 100) ? dk(col, 0.62) : col); }
       px(g, x, bot, dk(bc[2], 0.6)); }
     for (let k = 0; k < 6; k++) px(g, 128, 66 + k * 4, bc[3], 2, 2); // fringe
+    } else { // nobody home: a dent in the cushion and the blanket folded neatly
+      g.globalAlpha = 0.3; ell(g, 80, 84, 34, 5.5, '#000'); g.globalAlpha = 1;
+      const fb = ['#e8b64a', '#c98f2a', '#a96d1d', '#f6dc8c'];
+      for (let y = 76; y < 86; y++) for (let x = 104; x < 132; x++) px(g, x, y, ((x + y) % 6 < 2) ? fb[3] : (y < 79 ? fb[0] : y < 83 ? fb[1] : fb[2]));
+      g.fillStyle = dk(fb[2], 0.6); g.fillRect(104, 85, 28, 1); g.fillRect(104, 76, 28, 1); g.fillRect(104, 76, 1, 10); g.fillRect(131, 76, 1, 10);
+    }
     g.drawImage(frontL, 0, 0);
     // floating Zzz
-    for (let i = 0; i < 3; i++) { const p = ((ms / 2600) + i / 3) % 1; drawZ(g, 58 + p * 22 + Math.sin(p * 6) * 2, 56 - p * 32, p < 0.4 ? 1 : 2, Math.sin(p * Math.PI)); }
+    if (catKind) for (let i = 0; i < 3; i++) { const p = ((ms / 2600) + i / 3) % 1; drawZ(g, 58 + p * 22 + Math.sin(p * 6) * 2, 56 - p * 32, p < 0.4 ? 1 : 2, Math.sin(p * Math.PI)); }
     // string lights with a soft twinkle
     const cols = ['#ff7a7a', '#ffd36a', '#8ae0a0', '#7ac0ff', '#e89aff'];
     for (let x = 0; x <= HW; x += 3) px(g, x, 4 + Math.sin(x / 26 * Math.PI) * 2.4 + 2, '#2b1c14');
@@ -1463,12 +1469,15 @@ bubble('Hi ' + cat().name + '!', cat().x, GROUND - 50);
     const vg = g.createRadialGradient(80, 52, 26, 80, 52, 112); vg.addColorStop(0, 'rgba(10,6,20,0)'); vg.addColorStop(1, 'rgba(10,6,20,' + (0.5 + 0.2 * night) + ')'); g.fillStyle = vg; g.fillRect(0, 0, HW, HH);
     if (night > 0.2) { g.fillStyle = 'rgba(30,30,90,' + (0.12 * night) + ')'; g.fillRect(0, 0, HW, HH); }
   }
-  function loop(ms) { frame(ms); raf = requestAnimationFrame(loop); }
+  const insideId = () => ['kitty', 'ticky'].find(id => CATS[id].state === 'house') || null;
+  function setup() {
+    who = insideId(); catKind = who ? (CATS[who].pre === '' ? 'siamese' : 'tabby') : null; buildRoom(catKind || 'siamese');
+    $('house-cap').textContent = who ? CATS[who].name + ' is having a nap' : 'The cathouse is empty \u2014 both cats are out';
+  }
+  function loop(ms) { if (insideId() !== who) setup(); frame(ms); raf = requestAnimationFrame(loop); }
 
   function open() {
-    who = ACTIVE === 'kitty' ? 'ticky' : 'kitty';
-    catKind = CATS[who].pre === '' ? 'siamese' : 'tabby'; buildRoom(catKind);
-    $('house-cap').textContent = CATS[who].name + ' is having a nap';
+    who = undefined; setup();
     openedAt = performance.now(); panel.classList.add('open'); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
   }
   function close() { panel.classList.remove('open'); cancelAnimationFrame(raf); }
